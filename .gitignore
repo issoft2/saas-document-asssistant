@@ -19,6 +19,7 @@ dist/
 .env
 .env.*
 .DS_Store
+.env.development
 
 
 # IDE

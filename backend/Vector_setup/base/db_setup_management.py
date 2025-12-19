@@ -8,11 +8,11 @@ Design:
 - One embedded Chroma instance (single DB on disk).
 - Multi-tenancy implemented at the application level by prefixing
   collection names with the tenant_id.
-- Embeddings delegated to external service (no SentenceTransformer dependency).
 - Simple API surface:
     - configure_tenant_and_collection()
     - list_companies()
     - list_collections()
+    - list_documents()
     - add_document()
     - query_policies()
 """
@@ -20,10 +20,12 @@ Design:
 import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-import aiohttp
-import asyncio
 from pydantic import BaseModel, Field, validator
 import tiktoken
+from chromadb import PersistentClient
+from Vector_setup.embeddings.embedding_service import EmbeddingService
+
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -33,7 +35,7 @@ logger.setLevel(logging.INFO)
 # ------------------------------------------------
 class TenantCollectionConfigRequest(BaseModel):
     tenant_id: str
-    collection_name: str
+    collection_name: Optional[str] = None
 
     @validator("tenant_id")
     def safe_tenant_name(cls, v: str) -> str:
@@ -59,6 +61,7 @@ class CompanyProvisionRequest(BaseModel):
 
 class CollectionCreateRequest(BaseModel):
     """Create a collection within a tenant space."""
+    
     tenant_id: str
     collection_name: str = Field(..., min_length=1, max_length=64)
 
@@ -68,69 +71,59 @@ class CollectionCreateRequest(BaseModel):
             raise ValueError("Collection name must be alphanumeric and may include '-' or '_'.")
         return v
 
-class EmbeddingRequest(BaseModel):
-    """Request payload for external embedding service."""
-    texts: List[str]
-    model: str = "all-MiniLM-L6-v2"
+
 
 # ------------------------------------------------
 # Multi-tenant ChromaDB manager (collection-prefix approach)
 # ------------------------------------------------
+
 class MultiTenantChromaStoreManager:
     """
-    Production ChromaDB manager with external embedding service integration.
-    
-    Key changes from previous version:
-    - No SentenceTransformer dependency (moved to embedding_service)
-    - Batch embedding calls for performance
-    - Async HTTP client for non-blocking embedding requests
-    - Configurable embedding service endpoint
+    Production ChromaDB manager with in-process embedding service integration.
+
+    - Uses a single PersistentClient on disk.
+    - Namespaces collections as "<tenant_id>__<collection_name>".
+    - Async API for add_document / query_policies to fit FastAPI nicely.
     """
 
     def __init__(
-        self, 
+        self,
         persist_dir: str = "./chromadb_multi_tenant",
-        embedding_service_url: str = "http://embedding_service:8001/embed"
+        embedding_model_name: str = "BAAI/bge-small-en-v1.5",
     ):
+        # Embedding service (owns the SentenceTransformer model)
+        self._embedding_service = EmbeddingService(model_name=embedding_model_name)
+
         # Ensure persistence directory exists
         self.persist_dir = Path(persist_dir).resolve()
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 
-        # ONE global client, no tenant/database args
-        from chromadb import PersistentClient
+        # One global Chroma client
         self._client: PersistentClient = PersistentClient(path=str(self.persist_dir))
-
-        # External embedding service configuration
-        self.embedding_service_url = embedding_service_url
-        self._http_session: Optional[aiohttp.ClientSession] = None
 
         # Tokenizer for token-based chunking
         self._encoding = tiktoken.get_encoding("o200k_base")
 
-        logger.info("MultiTenantChromaStoreManager initialized at %s (embeddings: %s)", 
-                   self.persist_dir, embedding_service_url)
-
-    async def _init_http_session(self):
-        """Lazy initialization of HTTP session for embedding service."""
-        if self._http_session is None:
-            self._http_session = aiohttp.ClientSession()
-    
-    async def _get_embeddings_batch(self, texts: List[str], model: str = "all-MiniLM-L6-v2") -> List[List[float]]:
+        logger.info(
+            "MultiTenantChromaStoreManager initialized at %s (model: %s)",
+            self.persist_dir,
+            embedding_model_name,
+        )
+  
+    async def _get_embeddings_batch(
+        self,
+        texts: List[str],
+    ) -> List[List[float]]:
         """
-        Fetch embeddings from external service in batch for performance.
-        """
-        await self._init_http_session()
+        Compute embeddings locally using SentenceTransformer.
         
-        req = EmbeddingRequest(texts=texts, model=model)
-        async with self._http_session.post(
-            self.embedding_service_url, 
-            json=req.dict()
-        ) as resp:
-            if resp.status != 200:
-                raise ValueError(f"Embedding service failed: {await resp.text()}")
-            result = await resp.json()
-            return result["embeddings"]
+        Kept async for interface compatibility; uses sync encode under the hood.
+        """
+        
+         # You can ignore `model` or add logic to switch models later
+        return self._embedding_service.embed_batch(texts)
 
+                 
     def _tenant_collection_name(self, tenant_id: str, collection_name: str) -> str:
         """Build the internal collection name, namespaced by tenant."""
         return f"{tenant_id}__{collection_name}"
@@ -169,10 +162,11 @@ class MultiTenantChromaStoreManager:
         return chunks
 
     # -----------------------------------------------------
-    # Public API-facing methods (unchanged interface)
+    # Public API-facing methods
     # -----------------------------------------------------
     def configure_tenant_and_collection(self, req: TenantCollectionConfigRequest) -> dict:
         """Provision company + create collection in one call."""
+        
         provision_result = self.provision_company_space(
             CompanyProvisionRequest(tenant_id=req.tenant_id)
         )
@@ -191,7 +185,7 @@ class MultiTenantChromaStoreManager:
         }
 
     def provision_company_space(self, req: CompanyProvisionRequest) -> dict:
-        """Logical provisioning when a company first configures RAG."""
+        """Logical provisioning when a company first configure."""
         return {
             "status": "ok",
             "tenant_id": req.tenant_id,
@@ -241,17 +235,25 @@ class MultiTenantChromaStoreManager:
         doc_id: str,
         text: str,
         metadata: Optional[dict] = None,
-        embedding_model: str = "all-MiniLM-L6-v2",
     ) -> dict:
         """
         Ingest document with async batch embedding via external service.
         """
         chunks = self._chunk_text_tokens(text, max_tokens=512, overlap_tokens=64)
         if not chunks:
-            return {"status": "error", "message": "Document has no text content after processing."}
+            return {
+                "status": "error", 
+                "message": "Document has no text content after processing."
+            }
 
         # Batch embed all chunks at once for performance
-        embeddings = await self._get_embeddings_batch(chunks, embedding_model)
+        
+        embeddings = await self._get_embeddings_batch(chunks)
+        if not embeddings:
+            return {
+                "status": "error",
+                "message": "Failed to compute embeddings for document.",
+            }
 
         full_name = self._tenant_collection_name(tenant_id, collection_name)
         collection = self._client.get_or_create_collection(full_name)
@@ -287,25 +289,31 @@ class MultiTenantChromaStoreManager:
             "new_collection_count": collection.count(),
         }
 
-    def query_policies(
+    
+    async def query_policies(
         self,
         tenant_id: str,
         collection_name: Optional[str],
         query: str,
-        query_embedding: list[float],
         top_k: int = 5,
-        embedding_model: str = "all-MiniLM-L6-v2",
     ) -> dict:
         """
         Vector search within tenant collections.
+        
         - Single collection if collection_name provided
         - All tenant collections if None
+        Uses local embedding model  to embed the query.
         """
-        # Note: Query embedding must come from same service - handled at API level
-        # This method assumes pre-computed query embedding passed separately
         
-        hits = []
+        hits: list[dict] = []
 
+        # 1) Compute query embedding via local model 
+        query_embeddings = await self._get_embeddings_batch([query])
+        if not query_embeddings:
+            return {"query": query, "results": []}
+      
+
+        # 2) Select collections for this tenant
         if collection_name:
             full_name = self._tenant_collection_name(tenant_id, collection_name)
             collections = [self._client.get_or_create_collection(full_name)]
@@ -314,36 +322,45 @@ class MultiTenantChromaStoreManager:
             all_cols = self._client.list_collections()
             collections = [c for c in all_cols if c.name.startswith(prefix)]
 
+        # 3) Query each collection with the SAME query embedding
         for col in collections:
-            if not query_embedding:
-               raise ValueError("Empty query embedding")
-        
+            logger.debug(
+                "Querying collection %s with embeddings len=%d inner_len=%d",
+                col.name,
+                len(query_embeddings),
+                len(query_embeddings[0]) if query_embeddings and query_embeddings[0] else 0,
+            )
             results = col.query(
-                query_embeddings=[query_embedding],  # Placeholder - embed at API level
+                query_embeddings=query_embeddings,   #  [[...]]
                 n_results=top_k,
                 include=["documents", "metadatas", "distances"],
             )
-            
+
             ids = results.get("ids", [[]])[0]
             docs = results.get("documents", [[]])[0]
             metas = results.get("metadatas", [[]])[0]
             dists = results.get("distances", [[]])[0]
 
             for i in range(len(ids)):
-                hits.append({
-                    "id": ids[i],
-                    "document": docs[i],
-                    "metadata": metas[i],
-                    "distance": dists[i],
-                    "collection": col.name,
-                })
+                hits.append(
+                    {
+                        "id": ids[i],
+                        "document": docs[i],
+                        "metadata": metas[i],
+                        "distance": dists[i],
+                        "collection": col.name,
+                    }
+                )
 
+        # 4) Sort across all collections and trim to top_k
         hits.sort(key=lambda h: h["distance"])
         hits = hits[:top_k]
 
         return {"query": query, "results": hits}
+    
+    
 
     async def close(self):
-        """Clean shutdown."""
-        if self._http_session:
-            await self._http_session.close()
+        """Clean shutdown. hook (Kept for symmetry, nothing to close now)."""
+        # Nothing to close. Kept for compatibility if you later add resources
+        return None

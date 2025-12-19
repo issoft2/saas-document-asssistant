@@ -14,4 +14,13 @@ hnswlib==0.8.0
 pydantic-settings==2.5.2
 langchain
 langchain-openai
+# torch==2.3.1
+torch>=2.6,<3
+sentence-transformers
+PyMuPDF
+python-docx
+pymupdf4llm
+pymupdf-layout
+
+
 

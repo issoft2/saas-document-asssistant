@@ -4,17 +4,20 @@
       Ingestion & Configuration
     </h1>
     <p class="text-sm text-slate-500">
-      Use this page to configure a company and its collection, then ingest policy documents.
+      Use this page to configure companies and ingest policy documents.
     </p>
 
-    <!-- Configure tenant + collection in one step -->
-    <section class="bg-white border rounded-xl shadow-sm p-4 md:p-5 space-y-4">
+    <!-- Vendor-only: configure company & first collection -->
+    <section
+      v-if="isVendor"
+      class="bg-white border rounded-xl shadow-sm p-4 md:p-5 space-y-4"
+    >
       <header>
         <h2 class="text-sm font-semibold text-slate-900">
-          Configure company & collection
+          Configure company & first collection
         </h2>
         <p class="text-xs text-slate-500">
-          Create the company space and its first collection in one step.
+          Only vendor can provision a new company/tenant and its first collection.
         </p>
       </header>
 
@@ -37,7 +40,7 @@
 
         <div class="space-y-1">
           <label class="block text-xs font-medium text-slate-700">
-            Collection name
+            First collection name
           </label>
           <input
             v-model="collectionName"
@@ -68,26 +71,120 @@
       </p>
     </section>
 
-    <!-- Document upload (reuses tenantId + collectionName) -->
+    <!-- Non-vendor info -->
+    <section
+      v-else
+      class="bg-white border rounded-xl shadow-sm p-4 md:p-5 space-y-2"
+    >
+      <h2 class="text-sm font-semibold text-slate-900">
+        Company configuration
+      </h2>
+      <p class="text-xs text-slate-500">
+        Company creation is managed by the vendor. You can create collections
+        and upload documents for your assigned company.
+      </p>
+      <p class="text-xs text-slate-600" v-if="currentTenantId">
+        Your company / tenant:
+        <span class="font-semibold">{{ currentTenantId }}</span>
+      </p>
+    </section>
+
+    <!-- Tenant-scoped collection creation (HR/Executive only) -->
+    <section
+      v-if="canCreateCollections"
+      class="bg-white border rounded-xl shadow-sm p-4 md:p-5 space-y-4"
+    >
+      <header>
+        <h2 class="text-sm font-semibold text-slate-900">
+          Create collection for your company
+        </h2>
+        <p class="text-xs text-slate-500">
+          Collections are created within your own tenant. You cannot create
+          collections for other companies.
+        </p>
+        <p class="text-[11px] text-slate-600" v-if="currentTenantId">
+          Tenant:
+          <span class="font-semibold">{{ currentTenantId }}</span>
+        </p>
+      </header>
+
+      <form
+        class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] items-end"
+        @submit.prevent="onCreateCollection"
+      >
+        <div class="space-y-1">
+          <label class="block text-xs font-medium text-slate-700">
+            Collection name
+          </label>
+          <input
+            v-model="tenantCollectionName"
+            type="text"
+            class="w-full rounded-lg border px-3 py-2 text-sm"
+            placeholder="e.g. hr_policies"
+            required
+          />
+        </div>
+
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            class="btn-primary"
+            :disabled="createCollectionLoading"
+          >
+            <span v-if="!createCollectionLoading">Create collection</span>
+            <span v-else>Creating…</span>
+          </button>
+        </div>
+      </form>
+
+      <p v-if="createCollectionMessage" class="text-xs text-emerald-600">
+        {{ createCollectionMessage }}
+      </p>
+      <p v-if="createCollectionError" class="text-xs text-red-600">
+        {{ createCollectionError }}
+      </p>
+    </section>
+
+    <!-- Document upload (tenant-scoped) -->
     <section class="bg-white border rounded-xl shadow-sm p-4 md:p-5 space-y-4">
       <header>
         <h2 class="text-sm font-semibold text-slate-900">
           Upload policy documents
         </h2>
         <p class="text-xs text-slate-500">
-          Upload policy files to index them into the configured collection.
+          Upload policy files to index them into a collection in your company.
         </p>
-        <p class="text-[11px] text-slate-600" v-if="tenantId && collectionName">
+
+        <p
+          class="text-[11px] text-slate-600"
+          v-if="currentTenantId && activeCollectionName"
+        >
           Target:
-          <span class="font-semibold">{{ tenantId }}</span> /
-          <span class="font-semibold">{{ collectionName }}</span>
+          <span class="font-semibold">{{ currentTenantId }}</span> /
+          <span class="font-semibold">{{ activeCollectionName }}</span>
         </p>
         <p class="text-[11px] text-red-600" v-else>
-          Configure company and collection above before uploading.
+          You must have a collection selected or created before uploading.
         </p>
       </header>
 
       <form class="space-y-3" @submit.prevent="onUpload">
+        <div class="space-y-1">
+          <label class="block text-xs font-medium text-slate-700">
+            Collection to upload into
+          </label>
+          <input
+            v-model="activeCollectionName"
+            type="text"
+            class="w-full rounded-lg border px-3 py-2 text-sm"
+            placeholder="e.g. hr_policies"
+            required
+          />
+          <p class="text-[11px] text-slate-400">
+            Use the same name as an existing collection you created above.
+          </p>
+        </div>
+
         <div class="space-y-1">
           <label class="block text-xs font-medium text-slate-700">
             Document title (optional)
@@ -100,32 +197,35 @@
           />
         </div>
 
-       <div class="space-y-1">
-        <label class="block text-xs font-medium text-slate-700">
+        <div class="space-y-1">
+          <label class="block text-xs font-medium text-slate-700">
             File
-        </label>
-        <input
+          </label>
+          <input
             ref="fileInput"
             type="file"
             class="block w-full text-xs text-slate-500
-                file:mr-3 file:py-2 file:px-4
-                file:rounded-lg file:border-0
-                file:text-xs file:font-semibold
-                file:bg-indigo-50 file:text-indigo-700
-                hover:file:bg-indigo-100 cursor-pointer"
+                   file:mr-3 file:py-2 file:px-4
+                   file:rounded-lg file:border-0
+                   file:text-xs file:font-semibold
+                   file:bg-indigo-50 file:text-indigo-700
+                   hover:file:bg-indigo-100 cursor-pointer"
             @change="onFileChange"
-        />
-        <p class="text-[11px] text-slate-400">
+          />
+          <p class="text-[11px] text-slate-400">
             Click the “Choose file” button to select a document.
-        </p>
+          </p>
         </div>
-
 
         <div class="flex justify-end gap-3">
           <button
             type="submit"
             class="btn-primary"
-            :disabled="uploadLoading || !tenantId || !collectionName"
+            :disabled="
+              uploadLoading ||
+              !currentTenantId ||
+              !activeCollectionName
+            "
           >
             <span v-if="!uploadLoading">Upload & index</span>
             <span v-else>Uploading…</span>
@@ -144,14 +244,18 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { authState } from '../authStore'
 import {
   configureCompanyAndCollection,
+  createCollection,
   uploadDocument,
 } from '../api'
 
-const tenantId = ref('')
-const collectionName = ref('')
+const tenantId = ref('')              // used only by vendor for configure
+const collectionName = ref('')        // used only by vendor for first collection
+const tenantCollectionName = ref('')  // HR/Exec collection name for their own tenant
+const activeCollectionName = ref('')  // collection used for uploads
 const docTitle = ref('')
 const file = ref(null)
 
@@ -159,13 +263,30 @@ const configureLoading = ref(false)
 const configureMessage = ref('')
 const configureError = ref('')
 
+const createCollectionLoading = ref(false)
+const createCollectionMessage = ref('')
+const createCollectionError = ref('')
+
 const uploadLoading = ref(false)
 const uploadMessage = ref('')
 const uploadError = ref('')
 
 const fileInput = ref(null)
 
+// Role awareness
+const currentUser = computed(() => authState.user)
+const currentRole = computed(() => currentUser.value?.role || '')
+const currentTenantId = computed(() => currentUser.value?.tenant_id || '')
+
+const isVendor = computed(() => currentRole.value === 'vendor')
+const canCreateCollections = computed(() =>
+  ['hr', 'executive'].includes(currentRole.value?.toLowerCase())
+)
+
+// Vendor: configure company + first collection
 async function onConfigure() {
+  if (!isVendor.value) return
+
   configureMessage.value = ''
   configureError.value = ''
   configureLoading.value = true
@@ -177,9 +298,42 @@ async function onConfigure() {
     configureMessage.value = `Company "${tenantId.value}" and collection "${collectionName.value}" created.`
   } catch (e) {
     configureError.value =
-      e.response?.data?.detail || 'Failed to configure company and collection.'
+      e.response?.data?.detail ||
+      'Failed to configure company and collection.'
   } finally {
     configureLoading.value = false
+  }
+}
+
+// HR/Executive: create collection for their tenant
+async function onCreateCollection() {
+  createCollectionMessage.value = ''
+  createCollectionError.value = ''
+
+  if (!canCreateCollections.value) {
+    createCollectionError.value =
+      'Only HR or Executive can create collections.'
+    return
+  }
+
+  if (!tenantCollectionName.value.trim()) {
+    createCollectionError.value = 'Collection name is required.'
+    return
+  }
+
+  createCollectionLoading.value = true
+  try {
+    await createCollection({
+      name: tenantCollectionName.value.trim(),
+    })
+    createCollectionMessage.value = `Collection "${tenantCollectionName.value}" created for your company.`
+    // Optionally set this as the active collection for uploads
+    activeCollectionName.value = tenantCollectionName.value.trim()
+  } catch (e) {
+    createCollectionError.value =
+      e.response?.data?.detail || 'Failed to create collection.'
+  } finally {
+    createCollectionLoading.value = false
   }
 }
 
@@ -187,12 +341,18 @@ function onFileChange(event) {
   file.value = event.target.files?.[0] || null
 }
 
+// Upload into current tenant + chosen collection
 async function onUpload() {
   uploadMessage.value = ''
   uploadError.value = ''
 
-  if (!tenantId.value || !collectionName.value) {
-    uploadError.value = 'Configure company and collection above first.'
+  if (!currentTenantId.value) {
+    uploadError.value = 'No tenant is associated with your account.'
+    return
+  }
+
+  if (!activeCollectionName.value.trim()) {
+    uploadError.value = 'Collection name is required.'
     return
   }
 
@@ -204,8 +364,8 @@ async function onUpload() {
   uploadLoading.value = true
   try {
     await uploadDocument({
-      tenantId: tenantId.value,
-      collectionName: collectionName.value,
+      tenantId: currentTenantId.value,
+      collectionName: activeCollectionName.value.trim(),
       title: docTitle.value,
       file: file.value,
     })
@@ -213,7 +373,8 @@ async function onUpload() {
     if (fileInput.value) fileInput.value.value = ''
     file.value = null
   } catch (e) {
-    uploadError.value = e.response?.data?.detail || 'Failed to upload document.'
+    uploadError.value =
+      e.response?.data?.detail || 'Failed to upload document.'
   } finally {
     uploadLoading.value = false
   }

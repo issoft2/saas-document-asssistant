@@ -1,13 +1,13 @@
 <template>
   <div class="space-y-6 max-w-6xl mx-auto py-6">
     <!-- Header -->
-    <header class="flex items-center justify-between gap-3">
+    <header class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-xl font-semibold text-slate-900">
           Companies & Collections
         </h1>
         <p class="text-sm text-slate-500">
-          View existing companies, manage collections, and add users.
+          View existing companies, manage collections, upload documents, and add users.
         </p>
       </div>
       <button class="btn-primary" @click="loadCompanies" :disabled="loading">
@@ -38,11 +38,11 @@
         v-if="!companies.length && !loading && !error"
         class="px-4 py-6 text-sm text-slate-500"
       >
-        No companies found yet. Use the Ingestion page to configure one.
+        No companies found yet. Use the Ingestion page to configure one (vendor only).
       </div>
 
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <table class="min-w-full divide-y divide-slate-200 text-sm table-auto">
           <thead class="bg-slate-50">
             <tr>
               <th
@@ -84,12 +84,12 @@
                   <ul class="space-y-1">
                     <li
                       v-for="col in company.collections"
-                      :key="col.name"
+                      :key="col.collection_name || col.name"
                       class="flex items-center justify-between gap-2"
                     >
                       <div class="flex-1">
                         <div class="text-xs font-medium text-slate-800">
-                          {{ col.name }}
+                          {{ col.collection_name || col.name }}
                         </div>
                         <div class="text-[11px] text-slate-500">
                           {{ col.doc_count ?? 0 }} docs
@@ -105,6 +105,7 @@
 
               <!-- Actions -->
               <td class="px-4 py-3 align-top space-y-2">
+                <!-- Everyone: load collections for this tenant they are allowed to see -->
                 <button
                   class="btn-primary text-[11px] w-full"
                   @click="loadCollections(company.tenant_id)"
@@ -116,7 +117,9 @@
                   <span v-else>Loading…</span>
                 </button>
 
+                <!-- Upload: visible only if current user can upload to this tenant -->
                 <button
+                  v-if="canUploadToTenant(company.tenant_id)"
                   class="btn-primary text-[11px] w-full"
                   @click="openUploadModal(company)"
                   :disabled="!company.collections || !company.collections.length"
@@ -124,7 +127,9 @@
                   Add document
                 </button>
 
+                <!-- Add user: vendor can add to any tenant, HR/Exec only to own tenant -->
                 <button
+                  v-if="canManageUsersForTenant(company.tenant_id)"
                   class="btn-primary text-[11px] w-full"
                   @click="openUserModal(company)"
                 >
@@ -161,6 +166,9 @@
                   {{ selectedCollectionName }}
                 </span>
               </p>
+              <p class="text-[11px] text-slate-500" v-else>
+                Tenant is missing; close and reopen from a company row.
+              </p>
             </div>
             <button
               type="button"
@@ -184,10 +192,10 @@
                 <option value="" disabled>Select collection</option>
                 <option
                   v-for="col in activeCollections"
-                  :key="col.name"
-                  :value="col.name"
+                  :key="col.collection_name || col.name"
+                  :value="col.collection_name || col.name"
                 >
-                  {{ col.name }}
+                  {{ col.collection_name || col.name }}
                 </option>
               </select>
             </div>
@@ -408,6 +416,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { authState } from '../authStore'
 import { listCompanies, listCollections, uploadDocument, signup } from '../api'
 
 const companies = ref([])
@@ -415,6 +424,19 @@ const loading = ref(false)
 const loadingCollections = ref('')
 const error = ref('')
 const lastLoadedAt = ref('')
+
+// Current user / role context
+const currentUser = computed(() => authState.user)
+const currentRole = computed(() => currentUser.value?.role || '')
+const currentTenantId = computed(() => currentUser.value?.tenant_id || '')
+
+const isVendor = computed(() => currentRole.value === 'vendor')
+const canUpload = computed(() =>
+  ['hr', 'executive'].includes(currentRole.value?.toLowerCase()),
+)
+const canManageUsers = computed(() =>
+  ['vendor', 'hr', 'executive'].includes(currentRole.value?.toLowerCase()),
+)
 
 // Upload modal state
 const showUploadModal = ref(false)
@@ -449,12 +471,30 @@ const userLoading = ref(false)
 const userMessage = ref('')
 const userError = ref('')
 
+// Permission helpers
+
+function canUploadToTenant(tenantId) {
+  // Only HR/Executive of that tenant can upload; vendor cannot.
+  if (!canUpload.value) return false
+  return currentTenantId.value && currentTenantId.value === tenantId
+}
+
+function canManageUsersForTenant(tenantId) {
+  // Vendor: can add user to any tenant.
+  if (isVendor.value) return true
+  // HR/Exec: only to their own tenant.
+  if (!canManageUsers.value) return false
+  return currentTenantId.value && currentTenantId.value === tenantId
+}
+
+// Data loading
+
 async function loadCompanies() {
   loading.value = true
   error.value = ''
   try {
     const res = await listCompanies()
-    companies.value = res.data.map((c) => ({
+    companies.value = (res.data || []).map((c) => ({
       ...c,
       collections: c.collections || [],
     }))
@@ -481,10 +521,14 @@ async function loadCollections(tenantId) {
   }
 }
 
+// Upload modal handlers
+
 function openUploadModal(company) {
+  if (!canUploadToTenant(company.tenant_id)) return
   activeTenantId.value = company.tenant_id
   selectedCollectionName.value =
-    (company.collections && company.collections[0]?.name) || ''
+    (company.collections && (company.collections[0]?.collection_name || company.collections[0]?.name)) ||
+    ''
   docTitle.value = ''
   file.value = null
   uploadMessage.value = ''
@@ -533,7 +577,10 @@ async function onUploadFromAdmin() {
   }
 }
 
+// User modal handlers
+
 function openUserModal(company) {
+  if (!canManageUsersForTenant(company.tenant_id)) return
   userTenantId.value = company.tenant_id
   userEmail.value = ''
   userPassword.value = ''
@@ -573,10 +620,7 @@ async function onCreateUser() {
       role: userRole.value,
     })
 
-    // success message
     userMessage.value = 'User created successfully.'
-
-    // clear form fields
     userEmail.value = ''
     userPassword.value = ''
     userFirstName.value = ''
@@ -584,10 +628,6 @@ async function onCreateUser() {
     userDob.value = ''
     userPhone.value = ''
     userRole.value = ''
-
-    // optional: close modal and refresh companies
-    // closeUserModal()
-    // await loadCompanies()
   } catch (e) {
     userError.value =
       e.response?.data?.detail || 'Failed to create user.'
@@ -595,7 +635,6 @@ async function onCreateUser() {
     userLoading.value = false
   }
 }
-
 
 onMounted(loadCompanies)
 </script>
@@ -605,33 +644,28 @@ onMounted(loadCompanies)
 .fade-leave-active {
   transition: opacity 0.15s ease-out;
 }
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
 }
 
-/* Simple button style without @apply */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;          /* rounded-lg */
-  padding: 0.5rem 0.75rem;        /* px-3 py-2 */
-  font-size: 0.75rem;             /* text-xs */
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  color: #fff;                    /* text-white */
-  background-color: #4f46e5;      /* indigo-600 */
+  color: #fff;
+  background-color: #4f46e5;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
 }
-
 .btn-primary:hover {
-  background-color: #4338ca;      /* indigo-500 */
+  background-color: #4338ca;
 }
-
 .btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
 </style>

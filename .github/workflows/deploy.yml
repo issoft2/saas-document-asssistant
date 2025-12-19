@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        users: actions/Checkout@v4
+        uses: actions/Checkout@v4
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0

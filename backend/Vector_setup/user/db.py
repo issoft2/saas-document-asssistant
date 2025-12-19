@@ -1,8 +1,9 @@
 # db.py
 from sqlmodel import SQLModel, Field, create_engine, Session
 import os
+from datetime import datetime
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./users.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/users.db")
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
 class DBUser(SQLModel, table=True):
@@ -15,6 +16,16 @@ class DBUser(SQLModel, table=True):
     date_of_birth: str
     phone: str
     role: str
+    
+class ChatMessage(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    role: str # "user" or "assistant"
+    content: str
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    conversation_id: str | None = Field(nullable=False, index=True)
+        
 
 def init_db():
     SQLModel.metadata.create_all(engine)

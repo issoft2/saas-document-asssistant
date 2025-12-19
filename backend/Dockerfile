@@ -13,9 +13,16 @@ RUN apt-get update && apt-get install -y \
 # UPGRADE PIP + setuptools + wheel FIRST
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Install Python deps (NO HASH CHECKS)
+# Copy requirements
 COPY requirements.txt .
-RUN pip install --no-cache-dir --force-reinstall -r requirements.txt
+
+# Install deps with pip cache mount and override index-url for torch
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
+      --index-url https://pypi.org/simple \
+      --extra-index-url https://download.pytorch.org/whl/cpu \
+      -r requirements.txt
+
 
 # Copy code
 COPY . .

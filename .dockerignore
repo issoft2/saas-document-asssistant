@@ -1,0 +1,24 @@
+# Python virtual envs
+.venv
+venv
+
+
+# Git
+.git
+.gitignore
+
+# Bytecode / cache
+__pycache__/
+*.py[cod]
+data/
+
+# OS / editor junk
+.DS_Store
+.vscode
+.idea
+
+# Build artifacts
+dist/
+build/
+*.log
+node-modules

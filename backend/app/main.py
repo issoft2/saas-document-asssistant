@@ -38,9 +38,11 @@ app.add_middleware(
 )
 
 # --- Routers ---
-app.include_router(ingest_router, prefix="", tags=["ingest"])
-app.include_router(query_router, prefix="", tags=["query"])
-app.include_router(user_router, prefix="", tags=["user"])
+app.include_router(ingest_router, prefix="/api", tags=["ingest"])
+app.include_router(query_router, prefix="/api", tags=["query"])
+app.include_router(user_router, prefix="/api", tags=["user"])
+
+
 
 # --- Vendor user seeding on startup ---
 

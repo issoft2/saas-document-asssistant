@@ -4,7 +4,7 @@ import { computed } from 'vue'
 import { authState, logout } from '../authStore'
 
 const canSeeAdmin = computed(() =>
-  ['HR', 'executive', 'management', 'vendor'].includes(authState.user?.role)
+  ['hr', 'executive', 'management', 'vendor'].includes(authState.user?.role)
 )
 
 const roleLabel = computed(() => {
@@ -63,10 +63,12 @@ const roleLabel = computed(() => {
 
     </header>
 
-    <main class="flex-1 flex justify-center px-2 md:px-4 py-4">
-      <div class="w-full max-w-3xl">
-        <RouterView />
-      </div>
-    </main>
+<main class="flex-1 flex px-0 md:px-0 py-0">
+  <div class="w-full">
+    <RouterView />
+  </div>
+</main>
+
+
   </div>
 </template>

@@ -9,6 +9,7 @@ __pycache__/
 # Local Chroma + SQLite DBs (backend only)
 backend/chromadb_multi_tenant/
 backend/Users.db
+data/
 
 # Node / frontend
 node_modules/

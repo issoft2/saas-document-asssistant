@@ -99,9 +99,26 @@ export function login({ email, password }) {
 
 
 // Employee chat query
-export function queryPolicies({ question, topK = 5 }) {
+export function queryPolicies({ question, topK = 5, conversationId}) {
+   console.log('queryPolicies args:', { question, topK, conversationId })
   return api.post('/query', {
     question,
     top_k: topK,
+    conversation_id: conversationId,
+  })
+}
+
+export function listConversations() {
+  return api.get('/conversations')
+}
+
+export function getConversation(conversationId) {
+  return api.get(`/conversations/${conversationId}`)
+}
+
+// api.js
+export function createCollection({ name }) {
+  return api.post('/collections', {
+    name,
   })
 }

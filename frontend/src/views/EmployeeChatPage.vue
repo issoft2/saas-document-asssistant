@@ -142,6 +142,31 @@
                     </li>
                   </ul>
                 </div>
+
+                <!-- Follow-up suggestions (only under latest assistant answer) -->
+              <div
+                v-if="idx === messages.length - 1 && suggestions.length"
+                class="mt-4 border-t border-slate-800 pt-2"
+              >
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+                  Related questions
+                </p>
+
+                <div class="flex flex-col gap-1">
+                  <button
+                    v-for="s in suggestions"
+                    :key="s"
+                    type="button"
+                    class="text-left w-full text-[11px] px-2 py-1 rounded-md border border-slate-700 bg-slate-800
+                          text-slate-100 hover:bg-slate-700 hover:border-indigo-500"
+                    @click="onSuggestionClick(s)"
+                  >
+                    {{ s }}
+                  </button>
+                </div>
+              </div>
+
+
               </div>
             </div>
           </section>
@@ -173,7 +198,7 @@
                      focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Ask about your policies, procedures, or reports..."
               required
-            ></textarea>
+             @keydown.enter.exact.prevent="handleEnter" ></textarea>
 
             <div class="flex justify-between items-center gap-2">
               <p v-if="error" class="text-[11px] text-red-400 truncate max-w-xs">
@@ -206,8 +231,11 @@ const loading = ref(false)
 const error = ref('')
 
 
-// unified message shape: { role: 'user'|'assistant', text, sources? }
+
+// unified message shape: { role: 'user'|'assistant', text,}
 const messages = ref([])
+const suggestions = ref([]) 
+
 
 // conversation/session state
 const conversationId = ref(uuidv4())
@@ -332,7 +360,8 @@ async function onAsk() {
     role: 'user',
     text: currentQuestion,
   })
-
+ // Clear textare after successful submit
+    question.value = ''
   try {
     const res = await queryPolicies({
       question: currentQuestion,
@@ -342,14 +371,15 @@ async function onAsk() {
 
     const answer = res.data.answer
     const sources = res.data.sources || []
+    const followups = res.data.follow_up || []
 
     messages.value.push({
       role: 'assistant',
       text: answer,
       sources,
     })
-
-    question.value = ''
+    
+   suggestions.value = followups
 
     // refresh sidebar ordering
     await loadConversations()
@@ -358,6 +388,18 @@ async function onAsk() {
   } finally {
     loading.value = false
   }
+}
+
+// When user clicks on suggestion, treat it as a new question
+async function onSuggestionClick(s){
+  if (loading.value) return 
+  question.value = s
+  await onAsk()
+}
+
+async function handleEnter() {
+  if (loading.value) return
+  await onAsk()
 }
 
 onMounted(() => {

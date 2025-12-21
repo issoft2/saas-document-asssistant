@@ -67,7 +67,11 @@ async def query_policies_api(
         assistant_message=response_text["answer"],
         conversation_id=req.conversation_id
     )
-    return {"answer": response_text["answer"]}
+    
+    
+    
+    
+    return {"answer": response_text["answer"], "follow_up": response_text["follow_up"]}
 
 
 @router.get("/conversations", response_model=list[ConversationSummary])

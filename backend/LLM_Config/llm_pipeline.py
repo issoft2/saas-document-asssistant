@@ -2,8 +2,8 @@
 from typing import List, Dict, Any, Tuple, Literal, Optional
 import json
 
-from LLM_Config.llm_setup import llm_client
-from LLM_Config.system_user_prompt import create_context
+from LLM_Config.llm_setup import llm_client, suggestion_llm_client
+from LLM_Config.system_user_prompt import create_context, create_suggestion_prompt
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
 
 
@@ -175,8 +175,15 @@ async def llm_pipeline(
     # 8) CALL LLM (await, since llm_client is async)
     response = llm_client.invoke(messages)
     answer = getattr(response, "content", None) or str(response)
+    
+    # generate followup for the user
+    suggestion_message = create_suggestion_prompt(question, answer)
+    raw  = suggestion_llm_client.invoke(suggestion_message)
+    follow_ups = json.loads(raw.content)
 
     return {
         "answer": answer.strip(),
+        "follow_up": follow_ups,
         "sources": unique_sources,
+        
     }

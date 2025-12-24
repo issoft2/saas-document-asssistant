@@ -5,6 +5,8 @@ import fitz  # PyMuPDF
 from io import BytesIO
 from docx import Document
 import uuid
+import pandas as pd
+
 
 from Vector_setup.base.db_setup_management import (
     MultiTenantChromaStoreManager,
@@ -274,7 +276,7 @@ async def upload_document(
     return result
 
 
-# ---------- Text extraction helpers ----------
+# ---------- Pdf Text extraction helpers ----------
 
 def _extract_pdf_with_pymupdf(raw_bytes: bytes) -> str:
     parts: List[str] = []
@@ -306,6 +308,38 @@ def _extract_pdf_with_pymupdf(raw_bytes: bytes) -> str:
     return "\n\n".join(parts)
 
 
+# ---------- Excel Text extraction helpers ----------
+def _extract_excel_with_pandas(raw_bytes: bytes, filesname: str) -> list[str]:
+    buffer = BytesIO(raw_bytes)
+    
+    # This will use openpyxl as the engine for .xlsx if openpyxl is installed
+    sheets = pd.read_excel(buffer, sheet_name=None, engine="openpyxl")
+    
+    texts: list[str] = []
+    for sheet_name, df in sheets.items():
+        if df.empty:
+            continue
+        
+        row_lines = []
+        for _, row in df.iterrows():
+            parts = []
+            for col, val in row.items():
+                if pd.isna(val):
+                    continue
+                
+                parts.append(f"{col}: {val}")
+            if parts:
+                row_lines.append("  |  ".join(parts))
+                
+        if not row_lines:
+            continue
+        
+        sheet_text = f"sheet: {sheet_name}\n" + "\n".join(row_lines)
+        texts.append(sheet_text)
+        
+    return texts
+
+# ---------- Main text extraction function ----------
 def extract_text_from_upload(filename: str, raw_bytes: bytes) -> str:
     name = filename.lower()
 
@@ -314,6 +348,9 @@ def extract_text_from_upload(filename: str, raw_bytes: bytes) -> str:
 
     if name.endswith(".pdf"):
         return _extract_pdf_with_pymupdf(raw_bytes)
+    
+    if name.endswith(".xlsx") or name.endswith(".xls"):
+        return _extract_excel_with_pandas(raw_bytes)
 
     if name.endswith(".docx"):
         doc = Document(BytesIO(raw_bytes))

@@ -354,8 +354,10 @@ async function loadCollections() {
     return
   }
 
+  console.log('Loading collections for tenant:', currentTenantId.value)
+
   try {
-    const resp = await listCollections({ tenantId: currentTenantId.value })
+    const resp = await listCollections(currentTenantId.value)
 
     // Assume API returns {collections:  ["hr_policies", "finance_policies", .... ]}
     collections.value = resp.data.collections || []

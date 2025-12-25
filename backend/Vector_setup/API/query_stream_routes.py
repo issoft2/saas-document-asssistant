@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 from typing import Optional
+from pydantic import BaseModel
+
 
 
 from Vector_setup.user.db import get_db

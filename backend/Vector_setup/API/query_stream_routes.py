@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import StreamingResponse
-from sqmodel import Session
+from sqlmodel import Session
 from typing import Optional
 
 

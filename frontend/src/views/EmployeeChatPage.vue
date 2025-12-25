@@ -240,7 +240,7 @@
               >
                 Stop generating
               </button>
-
+             
               <textarea
                 v-model="question"
                 rows="3"
@@ -427,12 +427,12 @@ async function startNewConversation() {
 
 // Replace your existing onAsk/submit handler with this:
 const onAsk = async () => {
-  if (!input.value.trim() || loading.value || streaming.value) return
+  if (!question.value.trim() || loading.value || streaming.value) return
   
   // Add user message
   messages.value.push({
     role: 'user',
-    text: input.value,
+    text: question.value,
     sources: []
   })
   
@@ -444,7 +444,7 @@ const onAsk = async () => {
   })
   
   const params = new URLSearchParams({
-    question: input.value,
+    question: question.value,
     conversation_id: conversationId.value,
     // add your other params as needed
   })
@@ -452,7 +452,7 @@ const onAsk = async () => {
   streaming.value = true
   loading.value = true
   error.value = ''
-  input.value = ''
+  question.value = ''
 
   const es = new EventSource(`/api/query/stream?${params.toString()}`)
   currentEventSource = es

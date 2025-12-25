@@ -233,13 +233,20 @@
                   Working…
                 </span>
               </div>
-              <button 
-                v-if="streaming.value" 
-                @click="currentEventSource?.close(); abortController.value?.abort()"
-                class="stop-btn"
-              >
-                Stop generating
-              </button>
+               <button
+                  v-if="streaming"
+                  type="button"
+                  class="stop-btn"
+                  @click="
+                    currentEventSource && currentEventSource.close();
+                    abortController && abortController.abort();
+                    streaming = false;
+                    loading = false;
+                  "
+                >
+                  Stop generating
+                </button>
+
              
               <textarea
                 v-model="question"

@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
 from sqlmodel import Session
-from pydantic import BaseModel
 
 
 from Vector_setup.user.db import get_db

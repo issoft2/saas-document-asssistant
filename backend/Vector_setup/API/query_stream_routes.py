@@ -53,7 +53,7 @@ async def query_knowledge_stream(
                 full_answer.append(chunk)
                 yield f"event: token\ndata: {chunk}\n\n"
 
-        answer_str = "".join(full_answer).strip()
+        answer_str = "".join(full_answer)
 
         if answer_str:
             save_chat_turn(

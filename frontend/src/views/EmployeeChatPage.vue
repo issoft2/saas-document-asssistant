@@ -4,71 +4,70 @@
     <!-- Column on mobile, row on md+ -->
     <div class="flex flex-col md:flex-row w-full gap-3">
       <!-- Sidebar -->
-     <aside
-  class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex flex-col
-         w-full md:w-64 md:max-w-xs"
->
-  <div class="p-3 flex items-center justify-between border-b border-slate-800">
-    <h2 class="text-xs font-semibold text-slate-100">Conversations</h2>
-    <button
-      class="text-[11px] text-indigo-400 hover:text-indigo-300"
-      @click="startNewConversation"
-    >
-      Start new thread
-    </button>
-  </div>
-
-  <div class="flex-1 overflow-y-auto max-h-64 md:max-h-none">
-    <button
-      v-for="conv in conversations"
-      :key="conv.conversation_id"
-      class="w-full px-3 py-2 border-b border-slate-800/60 hover:bg-slate-800/60
-             flex items-start justify-between gap-2 text-left"
-      :class="conv.conversation_id === selectedConversationId ? 'bg-slate-800' : ''"
-      @click="openConversation(conv.conversation_id)"
-    >
-      <div class="flex-1 min-w-0">
-        <div class="text-[11px] font-medium text-slate-100 truncate">
-          {{ conv.first_question || 'Untitled conversation' }}
-        </div>
-        <div class="text-[10px] text-slate-500">
-          {{ formatDate(conv.last_activity_at) }}
-        </div>
-      </div>
-
-      <!-- Delete icon -->
-      <button
-        type="button"
-        class="ml-2 text-slate-500 hover:text-red-400 p-1 rounded-full hover:bg-slate-900"
-        @click.stop="onDeleteConversation(conv.conversation_id)"
-        title="Delete conversation"
+      <aside
+        class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex flex-col
+               w-full md:w-64 md:max-w-xs"
       >
-        <svg
-          class="w-3.5 h-3.5"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M6 7h12M10 11v6M14 11v6M9 7l1-2h4l1 2m-1 0v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7h10"
-          />
-        </svg>
-      </button>
-    </button>
+        <div class="p-3 flex items-center justify-between border-b border-slate-800">
+          <h2 class="text-xs font-semibold text-slate-100">Conversations</h2>
+          <button
+            class="text-[11px] text-indigo-400 hover:text-indigo-300"
+            @click="startNewConversation"
+          >
+            Start new thread
+          </button>
+        </div>
 
-    <p
-      v-if="!conversations.length"
-      class="text-[11px] text-slate-500 px-3 py-4"
-    >
-      No conversations yet. Start a new thread to see it here.
-    </p>
-  </div>
-</aside>
+        <div class="flex-1 overflow-y-auto max-h-64 md:max-h-none">
+          <button
+            v-for="conv in conversations"
+            :key="conv.conversation_id"
+            class="w-full px-3 py-2 border-b border-slate-800/60 hover:bg-slate-800/60
+                   flex items-start justify-between gap-2 text-left"
+            :class="conv.conversation_id === selectedConversationId ? 'bg-slate-800' : ''"
+            @click="openConversation(conv.conversation_id)"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="text-[11px] font-medium text-slate-100 truncate">
+                {{ conv.first_question || 'Untitled conversation' }}
+              </div>
+              <div class="text-[10px] text-slate-500">
+                {{ formatDate(conv.last_activity_at) }}
+              </div>
+            </div>
 
+            <!-- Delete icon -->
+            <button
+              type="button"
+              class="ml-2 text-slate-500 hover:text-red-400 p-1 rounded-full hover:bg-slate-900"
+              @click.stop="onDeleteConversation(conv.conversation_id)"
+              title="Delete conversation"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 7h12M10 11v6M14 11v6M9 7l1-2h4l1 2m-1 0v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7h10"
+                />
+              </svg>
+            </button>
+          </button>
+
+          <p
+            v-if="!conversations.length"
+            class="text-[11px] text-slate-500 px-3 py-4"
+          >
+            No conversations yet. Start a new thread to see it here.
+          </p>
+        </div>
+      </aside>
 
       <!-- Main chat card -->
       <div
@@ -152,11 +151,13 @@
                   </div>
                 </div>
 
+                <!-- Assistant markdown rendering -->
                 <MarkdownText
-                  v-if="msg.role === 'assistant' "
-                  :content="msg.text"
-                  class="mt-1 text-sm text-slate-100  prose prose-invert max-w-none "
-                  />
+                  v-if="msg.role === 'assistant'"
+                  :content="normalizeMarkdown(msg.text)"
+                  class="mt-1 text-sm text-slate-100 prose prose-invert max-w-none"
+                />
+                <!-- (This else branch doesn’t hit because we’re in msg.role !== 'user', but keep for safety) -->
                 <p
                   v-else
                   class="mt-1 text-sm text-slate-100 whitespace-pre-line"
@@ -179,29 +180,27 @@
                 </div>
 
                 <!-- Follow-up suggestions (only under latest assistant answer) -->
-              <div
-                v-if="idx === messages.length - 1 && suggestions.length"
-                class="mt-4 border-t border-slate-800 pt-2"
-              >
-                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
-                  Related questions
-                </p>
+                <div
+                  v-if="idx === messages.length - 1 && suggestions.length"
+                  class="mt-4 border-t border-slate-800 pt-2"
+                >
+                  <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+                    Related questions
+                  </p>
 
-                <div class="flex flex-col gap-1">
-                  <button
-                    v-for="s in suggestions"
-                    :key="s"
-                    type="button"
-                    class="text-left w-full text-[11px] px-2 py-1 rounded-md border border-slate-700 bg-slate-800
-                          text-slate-100 hover:bg-slate-700 hover:border-indigo-500"
-                    @click="onSuggestionClick(s)"
-                  >
-                    {{ s }}
-                  </button>
+                  <div class="flex flex-col gap-1">
+                    <button
+                      v-for="s in suggestions"
+                      :key="s"
+                      type="button"
+                      class="text-left w-full text-[11px] px-2 py-1 rounded-md border border-slate-700 bg-slate-800
+                            text-slate-100 hover:bg-slate-700 hover:border-indigo-500"
+                      @click="onSuggestionClick(s)"
+                    >
+                      {{ s }}
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-
               </div>
             </div>
           </section>
@@ -217,93 +216,90 @@
             </p>
           </section>
 
-        <!-- Ask form -->
           <!-- Ask form -->
-  <form class="pt-2 border-t border-slate-800 space-y-2" @submit.prevent="onAsk">
-    <label class="block text-[11px] font-medium text-slate-300 mb-1">
-      Your question
-    </label>
+          <form class="pt-2 border-t border-slate-800 space-y-2" @submit.prevent="onAsk">
+            <label class="block text-[11px] font-medium text-slate-300 mb-1">
+              Your question
+            </label>
 
-    <div class="relative">
-      <!-- Rotating "working..." indicator -->
-      <div
-        v-if="loading || isStreaming"
-        class="inline-flex items-center gap-2 rounded-full bg-slate-800/80 border border-slate-700 px-2.5 py-1 mb-1"
-        role="status"
-      >
-        <div
-          class="w-3 h-3 border-2 border-slate-500 border-t-indigo-400 rounded-full animate-spin"
-        ></div>
-        <span class="text-[11px] font-medium text-slate-100">
-          {{ isStreaming ? (streamStatus || 'Generating…') : 'Working…' }}
-        </span>
-      </div>
+            <div class="relative">
+              <!-- Rotating "working..." indicator -->
+              <div
+                v-if="loading || isStreaming"
+                class="inline-flex items-center gap-2 rounded-full bg-slate-800/80 border border-slate-700 px-2.5 py-1 mb-1"
+                role="status"
+              >
+                <div
+                  class="w-3 h-3 border-2 border-slate-500 border-t-indigo-400 rounded-full animate-spin"
+                ></div>
+                <span class="text-[11px] font-medium text-slate-100">
+                  {{ isStreaming ? (streamStatus || 'Generating…') : 'Working…' }}
+                </span>
+              </div>
 
-      <!-- Stop button when streaming -->
-      <button
-        v-if="isStreaming"
-        type="button"
-        class="stop-btn absolute right-2 top-2 text-[11px] px-2 py-1 rounded-md bg-slate-800 text-slate-100 border border-slate-600 hover:bg-slate-700"
-        @click="stopStream"
-      >
-        Stop generating
-      </button>
+              <!-- Stop button when streaming -->
+              <button
+                v-if="isStreaming"
+                type="button"
+                class="stop-btn absolute right-2 top-2 text-[11px] px-2 py-1 rounded-md bg-slate-800 text-slate-100 border border-slate-600 hover:bg-slate-700"
+                @click="stopStream"
+              >
+                Stop generating
+              </button>
 
-      <textarea
-        v-model="question"
-        rows="3"
-        class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 pr-11 text-sm
-               text-slate-100 placeholder:text-slate-500 resize-none
-               focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-               shadow-sm"
-        placeholder="Ask about your policies, procedures, or reports..."
-        required
-        @keydown.enter.exact.prevent="handleEnter"
-      ></textarea>
+              <textarea
+                v-model="question"
+                rows="3"
+                class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 pr-11 text-sm
+                       text-slate-100 placeholder:text-slate-500 resize-none
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
+                       shadow-sm"
+                placeholder="Ask about your policies, procedures, or reports..."
+                required
+                @keydown.enter.exact.prevent="handleEnter"
+              ></textarea>
 
-      <!-- Send button inside bottom-right -->
-      <button
-        type="submit"
-        class="absolute bottom-2 right-2 inline-flex items-center justify-center
-               h-8 w-8 rounded-full bg-indigo-600 text-white shadow
-               hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        :disabled="isSubmitDisabled"
-      >
-        <svg
-          class="w-4 h-4 rotate-90"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="m4.5 19.5 15-7.5-15-7.5 3 7.5-3 7.5zM10.5 12h9"
-          />
-        </svg>
-      </button>
-    </div>
+              <!-- Send button inside bottom-right -->
+              <button
+                type="submit"
+                class="absolute bottom-2 right-2 inline-flex items-center justify-center
+                       h-8 w-8 rounded-full bg-indigo-600 text-white shadow
+                       hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="isSubmitDisabled"
+              >
+                <svg
+                  class="w-4 h-4 rotate-90"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="m4.5 19.5 15-7.5-15-7.5 3 7.5-3 7.5zM10.5 12h9"
+                  />
+                </svg>
+              </button>
+            </div>
 
-    <div class="flex justify-between items-center gap-2">
-      <p v-if="error" class="text-[11px] text-red-400 truncate max-w-xs">
-        {{ error }}
-      </p>
-    </div>
-  </form>
-
+            <div class="flex justify-between items-center gap-2">
+              <p v-if="error" class="text-[11px] text-red-400 truncate max-w-xs">
+                {{ error }}
+              </p>
+            </div>
+          </form>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
-import { queryPolicies, listConversations, getConversation, deleteConversation } from '../api'
+import { listConversations, getConversation, deleteConversation } from '../api'
 import { useQueryStream } from '../composables/useQueryStream'
 import MarkdownText from '../components/MarkdownText.vue'
 
@@ -329,12 +325,29 @@ const suggestions = ref([])
 // Conversation/session state
 const conversationId = ref(uuidv4())
 const selectedConversationId = ref(conversationId.value)
-const conversations = ref([]) // [{ conversation_id, first_question, last_activity_at }]
+const conversations = ref([])
 
 // TTS
 const isSpeaking = ref(false)
 const voices = ref([])
 const selectedVoiceName = ref('')
+
+// Markdown normalization to fix glued headings/bullets
+function normalizeMarkdown(raw) {
+  if (!raw) return ''
+  let text = raw
+
+  // Ensure blank line before headings like "### Revenue"
+  text = text.replace(/(#+\s[^\n]+)/g, '\n\n$1')
+
+  // Separate "figures:### Revenue" -> "figures:\n\n### Revenue"
+  text = text.replace(/:\s*###/g, ':\n\n###')
+
+  // Separate "Revenue- Total" -> "Revenue\n- Total"
+  text = text.replace(/([A-Za-z0-9])-\s/g, '$1\n- ')
+
+  return text
+}
 
 // ----- Voices -----
 function loadVoices() {
@@ -349,9 +362,11 @@ function loadVoices() {
 }
 
 onMounted(() => {
-  if (!('speechSynthesis' in window)) return
-  loadVoices()
-  window.speechSynthesis.onvoiceschanged = loadVoices
+  if ('speechSynthesis' in window) {
+    loadVoices()
+    window.speechSynthesis.onvoiceschanged = loadVoices
+  }
+  loadConversations()
 })
 
 // ----- TTS helpers -----
@@ -443,6 +458,12 @@ watch(streamedAnswer, (val) => {
   }
 })
 
+// Sync loading with streaming
+watch(isStreaming, (val) => {
+  if (val) loading.value = true
+  else loading.value = false
+})
+
 // Main submit handler
 const onAsk = async () => {
   if (!question.value.trim() || loading.value || isStreaming.value) return
@@ -465,14 +486,11 @@ const onAsk = async () => {
   const asked = question.value
   question.value = ''
 
-  // Call streaming endpoint via composable
-  await startStream({
+  // Start streaming
+  startStream({
     question: asked,
     conversation_id: conversationId.value,
   })
-
-  // Optional: refresh conversation list afterwards
-  // await loadConversations()
 }
 
 // Disable send while busy or empty
@@ -510,11 +528,6 @@ async function onDeleteConversation(convId) {
       e.response?.data?.detail || 'Failed to delete conversation.'
   }
 }
-
-// Initial load
-onMounted(() => {
-  loadConversations()
-})
 </script>
 
 <style scoped>

@@ -45,7 +45,8 @@ const es = new EventSource(`/api/query/stream?${params.toString()}`)
     })
 
     es.addEventListener('token', (e: MessageEvent) => {
-      answer.value += e.data
+      const delta = (e.data || '').replace(/<\|n\|>/g, '\n')
+      answer.value += delta
     })
 
     es.addEventListener('done', () => {

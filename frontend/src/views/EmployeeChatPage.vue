@@ -296,7 +296,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import { listConversations, getConversation, deleteConversation } from '../api'

@@ -49,10 +49,17 @@ async def query_knowledge_stream(
         ):
             if await request.is_disconnected():
                 break
-            if chunk:
-                full_answer.append(chunk)
-                yield f"event: token\ndata: {chunk}\n\n"
+            if not chunk:
+                continue
+            
+            # Preserve exactly what the LLM return in full answer
+            full_answer.append(chunk)
+            
+            # Encode newlines for safer streaming, frontend will decode
+            safe_chunk = chunk.replace("\n", "<|n|>")
+            yield f"event: token\ndata: {safe_chunk}\n\n"
 
+        # Reconstruct final answer exactly as produced by LLM
         answer_str = "".join(full_answer)
 
         if answer_str:

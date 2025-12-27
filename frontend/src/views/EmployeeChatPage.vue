@@ -303,39 +303,43 @@ import { listConversations, getConversation, deleteConversation } from '../api'
 import { useQueryStream } from '../composables/useQueryStream'
 import MarkdownText from '../components/MarkdownText.vue'
 
-// Streaming composable
+// ----- Streaming composable -----
 const {
   answer: streamedAnswer,
   status: streamStatus,
   isStreaming,
+  suggestions,          // <- from composable
   startStream,
   stopStream,
 } = useQueryStream()
 
-// Form + UI state
+// ----- Form + UI state -----
 const question = ref('')
 const loading = ref(false)
 const error = ref('')
 
-// Messages and suggestions
-// message shape: { role: 'user'|'assistant', text, sources?: string[] }
-const messages = ref([])
-const suggestions = ref([])
+// ----- Messages -----
+// message shape: { role: 'user'|'assistant', text: string, sources?: string[] }
+type ChatMessage = {
+  role: 'user' | 'assistant'
+  text: string
+  sources?: string[]
+}
+const messages = ref<ChatMessage[]>([])
 
-// Conversation/session state
+// ----- Conversation/session state -----
 const conversationId = ref(uuidv4())
 const selectedConversationId = ref(conversationId.value)
-const conversations = ref([])
+const conversations = ref<any[]>([])
 
-// TTS
+// ----- TTS -----
 const isSpeaking = ref(false)
-const voices = ref([])
+const voices = ref<SpeechSynthesisVoice[]>([])
 const selectedVoiceName = ref('')
 
 function normalizeMarkdown(raw: string): string {
   return raw || ''
 }
-
 
 // ----- Voices -----
 function loadVoices() {
@@ -344,7 +348,7 @@ function loadVoices() {
   voices.value = list
   if (!selectedVoiceName.value && list.length) {
     const enVoice =
-      list.find(v => v.lang?.toLowerCase().startsWith('en')) || list[0]
+      list.find(v => v.lang?.toLowerCase().startsWith('en')) ?? list[0]
     selectedVoiceName.value = enVoice.name
   }
 }
@@ -358,7 +362,7 @@ onMounted(() => {
 })
 
 // ----- TTS helpers -----
-function speak(text) {
+function speak(text: string) {
   if (!('speechSynthesis' in window)) {
     alert('Text-to-speech is not supported in this browser.')
     return
@@ -369,7 +373,7 @@ function speak(text) {
   const utterance = new SpeechSynthesisUtterance(text)
 
   const voice =
-    voices.value.find(v => v.name === selectedVoiceName.value) || null
+    voices.value.find(v => v.name === selectedVoiceName.value) ?? null
   if (voice) {
     utterance.voice = voice
     utterance.lang = voice.lang
@@ -396,7 +400,7 @@ function stopSpeaking() {
 }
 
 // ----- Conversations -----
-function formatDate(v) {
+function formatDate(v?: string) {
   if (!v) return ''
   return new Date(v).toLocaleString()
 }
@@ -405,12 +409,12 @@ async function loadConversations() {
   try {
     const res = await listConversations()
     conversations.value = res.data || []
-  } catch (_) {
+  } catch {
     // ignore for now
   }
 }
 
-async function openConversation(convId) {
+async function openConversation(convId: string) {
   selectedConversationId.value = convId
   conversationId.value = convId
   error.value = ''
@@ -418,13 +422,13 @@ async function openConversation(convId) {
   try {
     const res = await getConversation(convId)
     const history = res.data.messages || []
-    messages.value = history.map(([role, content]) => ({
-      role,
+    messages.value = history.map(([role, content]: [string, string]) => ({
+      role: role as 'user' | 'assistant',
       text: content,
       sources: [],
     }))
-  } catch (e) {
-    error.value = e.response?.data?.detail || 'Failed to load conversation.'
+  } catch (e: any) {
+    error.value = e?.response?.data?.detail || 'Failed to load conversation.'
   } finally {
     loading.value = false
   }
@@ -438,7 +442,6 @@ async function startNewConversation() {
 }
 
 // ----- Streaming integration -----
-// Whenever streamedAnswer changes, update the last assistant message text
 watch(streamedAnswer, (val) => {
   const lastMsg = messages.value[messages.value.length - 1]
   if (lastMsg?.role === 'assistant') {
@@ -448,11 +451,10 @@ watch(streamedAnswer, (val) => {
 
 // Sync loading with streaming
 watch(isStreaming, (val) => {
-  if (val) loading.value = true
-  else loading.value = false
+  loading.value = val
 })
 
-// Main submit handler
+// ----- Main submit handler -----
 const onAsk = async () => {
   if (!question.value.trim() || loading.value || isStreaming.value) return
 
@@ -487,7 +489,7 @@ const isSubmitDisabled = computed(() => {
 })
 
 // Suggestions reuse onAsk
-async function onSuggestionClick(s) {
+async function onSuggestionClick(s: string) {
   if (loading.value || isStreaming.value) return
   question.value = s
   await onAsk()
@@ -499,7 +501,7 @@ async function handleEnter() {
 }
 
 // Delete conversation
-async function onDeleteConversation(convId) {
+async function onDeleteConversation(convId: string) {
   const ok = window.confirm('Delete this conversation and its messages?')
   if (!ok) return
 
@@ -511,9 +513,9 @@ async function onDeleteConversation(convId) {
     if (selectedConversationId.value === convId) {
       startNewConversation()
     }
-  } catch (e) {
+  } catch (e: any) {
     error.value =
-      e.response?.data?.detail || 'Failed to delete conversation.'
+      e?.response?.data?.detail || 'Failed to delete conversation.'
   }
 }
 </script>

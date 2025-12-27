@@ -5,6 +5,7 @@ export function useQueryStream() {
   const status = ref('')
   const isStreaming = ref(false)
   const eventSource = ref<EventSource | null>(null)
+  const suggestions = ref<string[]>([])
 
   const startStream = (payload: {
     question: string
@@ -19,33 +20,42 @@ export function useQueryStream() {
       collection_name: payload.collection_name ?? '',
     })
 
-     const token = localStorage.getItem('access_token')   // read at call time
-  
+    const token = localStorage.getItem('access_token')
     if (token) {
       params.set('token', token)
     }
 
-
+    // reset state for new request
     answer.value = ''
     status.value = 'Starting...'
+    suggestions.value = []
     isStreaming.value = true
 
-    // Close any previous stream first
+    // close any previous stream
     if (eventSource.value) {
       eventSource.value.close()
+      eventSource.value = null
     }
 
-const es = new EventSource(`/api/query/stream?${params.toString()}`)
-
+    const es = new EventSource(`/api/query/stream?${params.toString()}`)
     eventSource.value = es
 
     es.addEventListener('status', (e: MessageEvent) => {
-      status.value = e.data
+      status.value = e.data || ''
     })
 
     es.addEventListener('token', (e: MessageEvent) => {
       const delta = (e.data || '').replace(/<\|n\|>/g, '\n')
       answer.value += delta
+    })
+
+    es.addEventListener('suggestions', (e: MessageEvent) => {
+      try {
+        const parsed = JSON.parse(e.data || '[]')
+        suggestions.value = Array.isArray(parsed) ? parsed : []
+      } catch {
+        suggestions.value = []
+      }
     })
 
     es.addEventListener('done', () => {
@@ -67,15 +77,16 @@ const es = new EventSource(`/api/query/stream?${params.toString()}`)
     if (eventSource.value) {
       eventSource.value.close()
       eventSource.value = null
-      status.value = 'Stopped'
-      isStreaming.value = false
     }
+    status.value = 'Stopped'
+    isStreaming.value = false
   }
 
   return {
     answer,
     status,
     isStreaming,
+    suggestions,
     startStream,
     stopStream,
   }

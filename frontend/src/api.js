@@ -61,6 +61,27 @@ export function listCollections(tenantId) {
 }
 
 
+// List all users (admin only)
+export function listCompanyUsers() {
+  console.log("I am looking...............")
+  return api.get('/company/users')
+}
+
+// Get single user (if need for detail/edit view)
+export function getCompanyUser(userId) {
+  return api.get(`/company/users/${userId}`)
+}
+
+// Update user
+export function updateCompanyUser(userId, payload) {
+  // payload matches userUpdate shape: {first_name?, last_name?, date_of_birth?, phone?, role?, is_active?}
+  return api.put(`/company/users/${userId}`, payload)
+}
+
+// Toggle active / inactive
+export function toggleCompanyUserActive(userId) {
+  return api.post(`/company/users/${userId}/toggle-active`)
+}
 
 // Upload document to current tenant + collection
 export function uploadDocument({ tenantId, collectionName, title, file, doc_id }) {
@@ -128,23 +149,3 @@ export function deleteConversation(conversationId) {
   return api.delete(`/conversations/${conversationId}`)
 }
 
-// List all users (admin only)
-export function listCompanyUsers() {
-  return api.get('/company/users')
-}
-
-// Get single user (if need for detail/edit view)
-export function getCompanyUser(userId) {
-  return api.get(`/company/users/${userId}`)
-}
-
-// Update user
-export function updateCompanyUser(userId, payload) {
-  // payload matches userUpdate shape: {first_name?, last_name?, date_of_birth?, phone?, role?, is_active?}
-  return api.put(`/company/users/${userId}`, payload)
-}
-
-// Toggle active / inactive
-export function toggleCompanyUserActive(userId) {
-  return api.post(`/company/users/${userId}/toggle-active`)
-}

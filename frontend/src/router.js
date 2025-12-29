@@ -8,7 +8,7 @@ import LoginPage from './views/LoginPage.vue'
 import SignupPage from './views/SignupPage.vue'
 import { authState } from './authStore'
 import HomePage from './views/HomePage.vue'   // ⬅ add this
-import usersAdmin from './views/usersAdmin.vue'
+import UsersAdmin from './views/usersAdmin.vue'
 
 
 const routes = [
@@ -37,6 +37,11 @@ const routes = [
         name: 'admin-companies',
         component: AdminCompaniesPage,
       },
+      {
+        path: 'company/users',
+        name: 'company-users',
+        component: UsersAdmin,
+      }
     ],
   },
 
@@ -61,12 +66,6 @@ const routes = [
 
   { path: '/auth', redirect: '/login' },
 
-  {
-    path: '/admin/users',
-    name: 'users-admin',
-    component: usersAdmin,
-    meta: { requiredRoles: ['hr', 'executive', 'management'] },
-  }
 ]
 
 export const router = createRouter({

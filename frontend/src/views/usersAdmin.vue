@@ -1,20 +1,19 @@
 <template>
-    <div class="p-4">
-        <div class="mb-3 flex items-centre gap-2">
-            <input type="text"
-              v-model="filter" 
-              placeholder="Search by name or email"
-              class="px-2 py-1 text-xs rounded bg-slate-900 border border-slate-700 text-slate-100 w-56"
-              />
-              <label class="flex item-center gap-1 text-[11px] text-slate-300">
-                <input type="checkbox" v-model="onlyActive" />
-                 Show only active
-              </label>
-              <span v-if="loading" class="text-[11px] text-slate-400">
-                Loading...
-              </span>
-              <span v-if="error" class="text-[11px] text-red-400">{{  error }}</span>
-        </div>
+  <div class="p-4">
+    <div class="mb-3 flex items-center gap-2"> <!-- ✅ fixed items-centre -->
+      <input 
+        type="text"
+        v-model="filter" 
+        placeholder="Search by name or email"
+        class="px-2 py-1 text-xs rounded bg-slate-900 border border-slate-700 text-slate-100 w-56"
+      />
+      <label class="flex items-center gap-1 text-[11px] text-slate-300"> <!-- ✅ fixed item-center -->
+        <input type="checkbox" v-model="onlyActive" />
+        Show only active
+      </label>
+      <span v-if="loading" class="text-[11px] text-slate-400">Loading...</span>
+      <span v-if="error" class="text-[11px] text-red-400">{{ error }}</span>
+    </div>
 
     <div
       class="grid gap-3"
@@ -27,7 +26,7 @@
       >
         <div class="flex items-center justify-between mb-2">
           <div class="text-xs font-semibold text-slate-100">
-            {{ u.full_name || 'No name' }}
+            {{ `${u.first_name} ${u.last_name}`.trim() || 'No name' }} <!-- ✅ use first_name + last_name -->
           </div>
           <span
             class="text-[10px] px-2 py-0.5 rounded-full"
@@ -73,81 +72,77 @@
   </div>
 </template>
 
-
-
-
-
-
-
-
-
 <script setup lang="ts">
-    import {ref, onMounted, computed } from 'vue'
-    import { listUsers, updateUser, deactivateUser } from '../composables/users'
-    
-   const users = ref<User[]>([])
-    const loading = ref(false)
-    const error = ref('')
+import { ref, onMounted, computed } from 'vue'
+import { listUsers, updateUser } from '../composables/users'  // ✅ correct path for your structure
+import type { User } from '../types/index'                  // ✅ correct path
 
-    const filter = ref('')
-    const onlyActive = ref(true)
+const users = ref<User[]>([])
+const loading = ref(false)
+const error = ref('')
+const filter = ref('')
+const onlyActive = ref(true)
 
-    const filteredUsers = computed(() => 
-        users.value.filter(user => {
-            const matchText = 
-            !filter.value || 
-            user.email.toLowverCase().includes(filter.value.toLowerCase()) || 
-            (user.first_name || '').toLowerCase().includes(filter.value.toLowerCase())
-            const matchActive = !onlyActive.value || user.is_active
-            return matchText && matchActive
-        }),
-    )
+const filteredUsers = computed(() => 
+  users.value.filter(user => {
+    const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase()
+    const matchText = !filter.value || 
+      user.email.toLowerCase().includes(filter.value.toLowerCase()) ||  // ✅ fixed toLowerCase
+      fullName.includes(filter.value.toLowerCase())
+    const matchActive = !onlyActive.value || user.is_active
+    return matchText && matchActive
+  })
+)
 
-    async function loadUsers() {
-        loading.value = true
-        error.value = ''
-        try {
-            const res = await listUsers()
-            users.value = res.data || []
-        }catch (e: any) {
-            error.value = e?.response?.data?.detail || 'Failed to load users.'
-        } finally {
-            loading.value = false
-        }
-    }
+async function loadUsers() {
+  console.log('🔄 Loading users...')  // ✅ debug
+  loading.value = true
+  error.value = ''
+  try {
+    const res = await listUsers()
+    users.value = res.data || []
+    console.log('✅ Users loaded:', users.value.length)  // ✅ debug
+  } catch (e: any) {
+    console.error('❌ Load users error:', e)  // ✅ debug
+    error.value = e?.response?.data?.detail || 'Failed to load users.'
+  } finally {
+    loading.value = false
+  }
+}
 
-    async function onToggleActive(user: User) {
-        const confirmMsg = user.is_active
-        ? `Deactivate ${user.email}?`
-        : `Activate ${user.email}?`
+async function onToggleActive(user: User) {
+  const confirmMsg = user.is_active
+    ? `Deactivate ${user.email}?`
+    : `Activate ${user.email}?`
+  if (!window.confirm(confirmMsg)) return
 
-      if (!window.confirm(confirmMsg)) return
+  try {
+    const res = await updateUser(user.id, { is_active: !user.is_active })
+    const updated = res.data
+    const idx = users.value.findIndex(u => u.id === updated.id)  // ✅ fixed: u.id === updated.id
+    if (idx !== -1) users.value[idx] = updated
+  } catch (e: any) {
+    error.value = e?.response?.data?.detail || 'Failed to update user.'
+  }
+}
 
-      try {
-        const res = await updateUser(user.id, {is_active: !user.is_active})
-        const updated = res.data
-        const idx = users.value.findIndex(user => user.id === user.id)
-        if (idx !== -1) users.value[idx] = updated
-      } catch (e: any){
-        error.value = e?.response?.data?.detail || 'Failed to update user.'
-      }
-    }
+async function onSaveUser(user: User) {
+  try {
+    const res = await updateUser(user.id, {
+      first_name: user.first_name,
+      last_name: user.last_name,  // ✅ added last_name
+      role: user.role,
+    })
+    const updated = res.data
+    const idx = users.value.findIndex(u => u.id === updated.id)  // ✅ fixed: u.id === updated.id
+    if (idx !== -1) users.value[idx] = updated
+  } catch (e: any) {
+    error.value = e?.response?.data?.detail || 'Failed to save user.'
+  }
+}
 
-    async function onSaveUser(user: User) {
-        try{
-            const res = await updateUser(user.id, {
-                first_name: user.first_name,
-                role: user.role,
-            })
-            
-            const updated = res.data
-            const idx = users.value.findIndex(user => user.id === user.id)
-            if (idx !== -1) users.value[idx] = updated
-
-        } catch (e: any) {
-            error.value = e?.response?.data?.detail || 'Failed to save user'
-        }
-    }
-
-    onMounted(loadUsers)
+onMounted(() => {
+  console.log('📱 UsersAdmin mounted')  // ✅ debug
+  loadUsers()
+})
 </script>

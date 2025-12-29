@@ -7,7 +7,7 @@ from Vector_setup.API.ingest_routes import router as ingest_router
 from Vector_setup.API.query_routes import router as query_router
 from Vector_setup.API.auth_router import router as user_router
 from Vector_setup.API.query_stream_routes import router as query_stream_router
-from backend.Vector_setup.API.company_users import router as company_user_router
+from Vector_setup.API.company_users_routes import router as company_user_router
 
 from Vector_setup.user.db import init_db, DBUser, engine
 from Vector_setup.user.password import get_password_hash

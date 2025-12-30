@@ -43,8 +43,6 @@ def create_access_token(
 
 def authenticate_user(email: str, password: str, db: Session):
     user = get_user_by_email(email, db)
-    print("AUTH user:", user.email, user.is_active)
-
     if not user:
         return None
     if not verify_password(password, user.hashed_password):

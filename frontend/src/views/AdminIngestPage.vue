@@ -379,7 +379,7 @@ const currentTenantId = computed(() => currentUser.value?.tenant_id || '')
 
 const isVendor = computed(() => currentRole.value === 'vendor')
 const canCreateCollections = computed(() =>
-  ['hr', 'executive'].includes(currentRole.value?.toLowerCase())
+  ['hr', 'executive', 'admin', 'management'].includes(currentRole.value?.toLowerCase())
 )
 
 async function loadCollections() {

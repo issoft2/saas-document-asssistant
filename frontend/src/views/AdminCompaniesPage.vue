@@ -380,6 +380,7 @@
                 <option value="executive">Executive</option>
                 <option value="hr">HR</option>
                 <option value="employee">Employee</option>
+                <option value="admin">Admin</option>
               </select>
             </div>
 

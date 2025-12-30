@@ -65,7 +65,7 @@ def login(
     if not user.is_active:  # or user.disabled, or user.status == "inactive"
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
+            detail="Your Account has been disabled!",
         )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)

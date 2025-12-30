@@ -1,7 +1,11 @@
 // authStore.js
 import { reactive } from 'vue'
 import router from './router'
-import api from './api'
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api", 
+})
 
 import { setAuthToken, login as apiLogin, me as apiMe } from './api'
 

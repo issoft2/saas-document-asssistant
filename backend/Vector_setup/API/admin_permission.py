@@ -12,4 +12,9 @@ def require_user_admin(user: UserOut = Depends(get_current_user)) -> UserOut:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions",
         )
+    if not user.is_active:  # or current_user.disabled / status check
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user",
+        )    
     return user 

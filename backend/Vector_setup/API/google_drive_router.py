@@ -57,52 +57,53 @@ def get_google_drive_auth_url(
     return JSONResponse({"auth_url": authorization_url})
 
 
-
-@router.get("callback")
+@router.get("/callback")
 def google_drive_callback(
     request: Request,
     code: str,
     state: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
- 
-    # parse state back to get tenant_id
+    # 1) Parse tenant_id from state
     state_params = parse_qs(state)
     tenant_ids = state_params.get("tenant_id")
     if not tenant_ids:
         raise HTTPException(status_code=400, detail="Missing tenant in state")
-    
     tenant_id = tenant_ids[0]
-    
-    flow = Flow.fron_client_config(
+
+    # 2) Build OAuth flow
+    flow = Flow.from_client_config(
         {
             "web": {
-                "client_id": GOOGLE_CLIENT_ID, # provide from env
+                "client_id": GOOGLE_CLIENT_ID,
                 "client_secret": GOOGLE_CLIENT_SECRET,
-                "auth_url": "https://accounts.google.com/o/oauth2/auth",
-                "token_url": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [GOOGLE_REDIRECT_URI] # env
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [GOOGLE_REDIRECT_URI],
             }
         },
-        
-        scopes=GOOGLE_SCOPES
+        scopes=GOOGLE_SCOPES.split(),  # if you stored as space-separated string
     )
-    flow.redirect_url = GOOGLE_REDIRECT_URI
-    
+    flow.redirect_uri = GOOGLE_REDIRECT_URI
+
+    # 3) Exchange code for tokens
     authorization_response = str(request.url)
     flow.fetch_token(authorization_response=authorization_response)
-    
     creds = flow.credentials
     if not creds.refresh_token:
         raise HTTPException(status_code=400, detail="No refresh token from Google")
-    
-    # Optional: get account email via Drive or People API
-    drive_service = build("dive", "v3", credentials=creds)
+
+    # 4) Get account email
+    drive_service = build("drive", "v3", credentials=creds)
     about = drive_service.about().get(fields="user(emailAddress)").execute()
     account_email = about["user"]["emailAddress"]
-    
-    # Store refresh_token + account_email per tenant
-    cfg = db.query(TenantGoogleDriveConfig).filter_by(tenant_id=tenant_id).first()
+
+    # 5) Store per tenant
+    cfg = (
+        db.query(TenantGoogleDriveConfig)
+        .filter_by(tenant_id=tenant_id)
+        .first()
+    )
     if not cfg:
         cfg = TenantGoogleDriveConfig(
             tenant_id=tenant_id,
@@ -110,14 +111,15 @@ def google_drive_callback(
             account_email=account_email,
         )
         db.add(cfg)
-        
     else:
-        cfg.refresh_token=creds.refresh_token
-        cfg.account_email=creds.account_email
-        
-    db.commit()        
-        
+        cfg.refresh_token = creds.refresh_token
+        cfg.account_email = account_email
+    print("Saving Google Drive config for tenant", tenant_id, account_email)
+    db.commit()
+    print("Saved config")
+
     return RedirectResponse(FRONTEND_AFTER_CONNECT_URL)
+
 
 
 @router.get("/status")

@@ -120,7 +120,7 @@ def google_drive_callback(
     return RedirectResponse(FRONTEND_AFTER_CONNECT_URL)
 
 
-@router.get("/google-drive/status")
+@router.get("/status")
 def google_drive_status(
     current_user: DBUser = Depends(require_tenant_admin),
     db: Session = Depends(get_db),

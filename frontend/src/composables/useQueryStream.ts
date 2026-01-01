@@ -1,12 +1,38 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 export function useQueryStream() {
   const answer = ref('')
   const statuses = ref<string[]>([])
-  const isStreaming = ref(false)
-  const eventSource = ref<EventSource | null>(null)
-  const suggestions = ref<string[]>([])
   const status = ref('')
+  const suggestions = ref<string[]>([])
+
+  const isStreaming = ref(false)
+  const showStreamingUI = ref(false)
+
+  const eventSource = ref<EventSource | null>(null)
+
+  let streamingStartedAt: number | null = null
+  const MIN_STREAMING_UI_MS = 700
+
+  // Control UI visibility with a minimum duration
+  watch(isStreaming, (val) => {
+    if (val) {
+      streamingStartedAt = performance.now()
+      showStreamingUI.value = true
+    } else {
+      const now = performance.now()
+      const elapsed = streamingStartedAt ? now - streamingStartedAt : 0
+      const remaining = MIN_STREAMING_UI_MS - elapsed
+
+      if (remaining <= 0) {
+        showStreamingUI.value = false
+      } else {
+        setTimeout(() => {
+          showStreamingUI.value = false
+        }, remaining)
+      }
+    }
+  })
 
   const startStream = (payload: {
     question: string
@@ -14,14 +40,13 @@ export function useQueryStream() {
     top_k?: number
     collection_name?: string | null
   }) => {
-
-     // 🔹 Reset per-run state here
+    // Reset per-run state
     answer.value = ''
     suggestions.value = []
-    statuses.value = []        // clear previous steps
+    statuses.value = []
     status.value = ''
-    isStreaming.value = true   // mark as active
-    
+    isStreaming.value = true
+
     const params = new URLSearchParams({
       question: payload.question,
       conversation_id: payload.conversation_id,
@@ -34,14 +59,7 @@ export function useQueryStream() {
       params.set('token', token)
     }
 
-    // reset state for new request
-    answer.value = ''
-    status.value = ''
-    statuses.value = []
-    suggestions.value = []
-    isStreaming.value = true
-
-    // close any previous stream
+    // Close any previous stream
     if (eventSource.value) {
       eventSource.value.close()
       eventSource.value = null
@@ -102,6 +120,7 @@ export function useQueryStream() {
     status,
     statuses,
     isStreaming,
+    showStreamingUI,
     suggestions,
     startStream,
     stopStream,

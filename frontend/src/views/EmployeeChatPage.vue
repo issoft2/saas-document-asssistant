@@ -128,14 +128,14 @@
               <!-- Assistant message -->
               <div v-else>
                 <!-- Hide latest assistant while streaming -->
-                <template v-if="!(isStreaming && idx === messages.length - 1)">
+                <template v-if="!(showStreamingUI && idx === messages.length - 1)">
                   <div class="flex items-center justify-between gap-2">
                     <h2 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
                       Answer
                     </h2>
                     <div class="flex items-center gap-2">
                       <button
-                        v-if="!isStreaming"
+                        v-if="!showStreamingUI"
                         type="button"
                         class="btn-primary text-[11px] px-2 py-1"
                         @click="speak(msg.text)"
@@ -181,7 +181,7 @@
 
                   <!-- Related questions only on latest answer, once done -->
                   <div
-                    v-if="idx === messages.length - 1 && suggestions.length && !isStreaming"
+                    v-if="idx === messages.length - 1 && suggestions.length && !showStreamingUI"
                     class="mt-4 border-t border-slate-800 pt-2"
                   >
                     <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
@@ -222,7 +222,7 @@
             <!-- Statuses above textarea -->
             <div class="flex items-start justify-between gap-2 mb-1">
               <div class="flex-1">
-                <div v-if="isStreaming" class="mb-1 space-y-1">
+                <div v-if="showStreamingUI" class="mb-1 space-y-1">
                   <div
                     class="inline-flex items-center gap-2 rounded-full bg-slate-800/80 border border-slate-700 px-2.5 py-1"
                     role="status"
@@ -249,7 +249,7 @@
               </div>
 
               <button
-                v-if="isStreaming"
+                v-if="showStreamingUI"
                 type="button"
                 class="stop-btn text-[11px] px-2 py-1 rounded-md bg-slate-800 text-slate-100 border border-slate-600 hover:bg-slate-700"
                 @click="stopStream"

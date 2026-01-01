@@ -9,6 +9,8 @@ import SignupPage from './views/SignupPage.vue'
 import { authState } from './authStore'
 import HomePage from './views/HomePage.vue'   // ⬅ add this
 import CompanyUsersPage from './views/CompanyUsersPage.vue'
+import NotAllowedPage from './views/NotAllowedPage.vue'
+
 
 
 const routes = [
@@ -66,6 +68,8 @@ const routes = [
 
   { path: '/auth', redirect: '/login' },
 
+  { path: '/not-allowed', name: 'not-allowed', component: NotAllowedPage },
+
 ]
 
 export const router = createRouter({
@@ -86,9 +90,10 @@ router.beforeEach((to, from, next) => {
     .filter(r => r.meta && r.meta.roles)
     .flatMap(r => r.meta.roles || [])
 
-  if (requiredRoles.length && role && !requiredRoles.includes(role)) {
-    // employee trying to hit /admin → send to chat
-    return next({ name: 'employee-chat' })
+  if (requiredRoles.length && role && !requiredRoles.includes(role)){
+    // Instead of sending back into /chat (which caused the loop).
+    // send to a dedicated "not allowed" page.
+    return next({name: 'not_allowed'})
   }
 
   next()

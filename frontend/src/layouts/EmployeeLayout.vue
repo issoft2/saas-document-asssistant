@@ -18,6 +18,7 @@ const roleLabel = computed(() => {
   if (role === 'Executive') return 'executive'
   if (role === 'Management') return 'management'
   if (role === 'vendor') return 'vendor'
+  if (role === 'admin') return 'admin'
 
   return role // fallback if new roles appear
 })

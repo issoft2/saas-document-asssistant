@@ -5,6 +5,7 @@ from LLM_Config.llm_setup import llm_client, suggestion_llm_client, llm_client_s
 from LLM_Config.system_user_prompt import create_context, create_suggestion_prompt
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
 
+
 IntentType = Literal["FOLLOWUP_ELABORATE", "NEW_QUESTION", "CHITCHAT", "UNSURE"]
 
 INTENT_PROMPT_TEMPLATE = """
@@ -32,8 +33,38 @@ Respond as pure JSON:
 }
 """.strip()
 
-# ... FINANCE_KEYWORDS, HR_KEYWORDS, TECH_KEYWORDS, POLICY_KEYWORDS unchanged ...
+FINANCE_KEYWORDS = [
+    "budget", "expense", "cost", "financial", "invoice", "payment",
+    "revenue", "profit", "loss", "fiscal", "audit",
+    "forecast", "projection", "balance sheet", "cash flow",
+    "tax", "cashflow", "expenses", "earnings", "cash balance",
+    "financial statement", "net income", "operating income",
+]
 
+HR_KEYWORDS = [
+    "leave", "vacation", "benefits", "payroll", "hiring",
+    "onboarding", "offboarding", "performance review", "promotion",
+    "disciplinary action", "work from home", "remote work",
+    "employee relations", "training", "development", "compensation",
+    "overtime", "time off", "sick leave", "maternity leave",
+]
+
+TECH_KEYWORDS = [
+    "deployment", "server", "database", "api", "bug",
+    "feature", "release", "version control", "ci/cd",
+    "infrastructure", "scalability", "performance", "latency",
+    "uptime", "monitoring", "logging", "cloud", "on-premise",
+    "virtualization", "containerization", "microservices",
+    "docker", "kubernetes", "load balancing", "networking",
+    "ssh", "password", "network", "backup",
+]
+
+POLICY_KEYWORDS = [
+    "policy", "procedure", "guideline", "compliance",
+    "regulation", "standard", "protocol", "rule",
+    "governance", "audit", "risk management", "code of conduct",
+    "ethics", "confidentiality", "data protection", "security",
+]
 
 def _format_history_for_intent(
     history_turns: Optional[List[Tuple[str, str]]],

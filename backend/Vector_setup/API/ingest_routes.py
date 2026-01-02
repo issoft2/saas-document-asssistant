@@ -7,6 +7,9 @@ from docx import Document
 import uuid
 import pandas as pd
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 from Vector_setup.base.db_setup_management import (
     MultiTenantChromaStoreManager,
@@ -447,5 +450,7 @@ def extract_text_from_upload(filename: str, raw_bytes: bytes) -> str:
                     parts.append(" | ".join(cells))
 
         return "\n".join(parts)
-
+    
+    
+     logger.warning("Unsupported file type for text extraction: %s", filename)
     return ""

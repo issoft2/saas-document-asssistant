@@ -20,7 +20,9 @@ from Vector_setup.API.ingest_routes import extract_text_from_upload
 
 # Single shared store instance
 
+import logging
 
+logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
 
@@ -196,60 +198,90 @@ class DriveFileOut(BaseModel):
     id: str
     name: str
     mime_type: str
-    
+
+GOOGLE_FOLDER_MIME = "application/vn.google-apps.folder"    
 
 @router.get("/files", response_model=List[DriveFileOut])
 def list_drive_files(
     folder_id: Optional[str] = None,
-    page_size: int = 50,
+    page_size: int = 100,
+    recursive: bool = False,
     db: Session = Depends(get_db),
     current_user: DBUser = Depends(require_tenant_admin),
     
 ):
     """
-    Docstring for list_drive_files
-    
-    :param folder_id: Description
-    :type folder_id: Optional[str]
-    :param page_size: Description
-    :type page_size: int
-    :param db: Description
-    :type db: Session
-    :param current_user: Description
-    :type current_user: DBUser
     
     List files in this tenant's connected Google Drive.
-    If folder_id is provided, redirect to that folder; otherwise list root/visible files.
+    If folder_id is provided, list that folder's children.
+    - Otherwise, list items in 'My Drive' visible to this account.
+    - If recursive=True, tranverse subfolders and return all decendants.
     """
     tenant_id = current_user.tenant_id
     service = get_drive_service_for_tenant(tenant_id, db)
     
-    # Build Drive query: only non-trashed files; optionally in a folder
+    def _list_page(q: str) -> list[dict]:
+        # you can also set spaces="drive" explicitly if needed.
+        results = (
+            service.files()
+            .list(
+                q=q,
+                pageSize=page_size,
+                fields="nextPageToken, files(id, name, mimeType, parents)",
+            )
+            .execute()
+        )
+        return results.get("files", [])
+    
+    # Base query: non-trashed files.
     q_parts = ["trashed = false"]
     if folder_id:
         q_parts.append(f"'{folder_id}' in parents")
+    #else: omit parents filter to treat as root/visible.
+        
         
     query = " and ".join(q_parts)
     
-    results = (
-        service.files()
-        .list(
-            q=query,
-            pageSize=page_size,
-            fields="files(id, name, mimeType)",
-        )
-        .execute()
-    )
-    files = results.get("files", [])
-    
+    if not recursive:
+        files = _list_page(query)
+    else:
+        # BFS/DFS through subfolders using multiple list calls.
+        files: list[dict] = []
+        folders_to_visit = [folder_id] if folder_id else [None]
+        
+        visited_folders: set[str] = set()
+        
+        while folders_to_visit:
+            current_folder = folders_to_visit.pop()
+            q_parts = ["trashed = false"]
+            if current_folder:
+                q_parts.append(f"'{current_folder}' in parents")
+                
+            query = " and ".join(q_parts)
+            
+            page_files = _list_page(query)
+            files.extend(page_files)
+            
+            # Add any child folders to the queue
+            for f in page_files:
+                if f.get("mimeType") == GOOGLE_FOLDER_MIME:
+                    fid = f["id"]
+                    if fid not in visited_folders:
+                        visited_folders.add(fid)
+                        folders_to_visit.append(fid)
+                                
+    # Map raw Drive items to your schema, including mime_type.
     return [
         DriveFileOut(
             id=f["id"],
             name=f["name"],
-            mime_type=f["mimeType"],
+            mime_type=f.get("mimeType", ""),
+            # Optional: parent_id=f.get("parents", [None])[0] if you want
         )
         for f in files
-    ] 
+        if f.get("mimeType") != GOOGLE_FOLDER_MIME # exclude folders themselves
+    ]
+    
     
  # Single shared store instance
 vector_store = MultiTenantChromaStoreManager("./chromadb_multi_tenant")
@@ -264,6 +296,12 @@ class DriveIngestRequest(BaseModel):
     title: Optional[str] = None
 
 
+
+# refine ingest function for google native documents supports
+GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
+GOOGLE_SHEET_MIME = "application/vnd.google-apps.spreadsheet"
+GOOGLE_SLIDE_MIME = "application/vnd.google-apps.presentation"
+
 @router.post("/ingest")
 async def ingest_drive_file(
     req: DriveIngestRequest,
@@ -272,74 +310,181 @@ async def ingest_drive_file(
     current_user: DBUser = Depends(require_tenant_admin),
 ):
     """
-    Download a file from Google Drive for this tenant and ingest it into a collection.
+    Download a file from Google Drive for this tenant, and ingest it into collection.
+    
+    Supports:
+    - Binary files (pdf, docx, txt, md, xlsx, etc.).
+    - Google Docs/Sheet/Slides via export.
     """
+    
     tenant_id = current_user.tenant_id
-    service = get_drive_service_for_tenant(tenant_id, db)
-
-    # 1) Get file metadata
+    service = get_drive_service_for_tenant(tenant_id=tenant_id, db=db)
+    
+    # Get file metadata
     file_meta = (
         service.files()
-        .get(fileId=req.file_id, fields="id, name, mimeType")
+        .get(field=req.file_id, files="id, name, mimeType")
         .execute()
     )
-    filename = file_meta["name"]
+    original_name = file_meta["name"]
     mime_type = file_meta.get("mimeType", "")
-
-    # 2) Download or export contents
+    
     buf = BytesIO()
+    
+    # Decide how to download/export and what "filename" to pass to extractor
     if mime_type.startswith("application/vnd.google-apps"):
-        # Google Docs/Sheets/Slides/etc → export to PDF
-        export_mime = "application/pdf"
+        # Google Workspace files: choose export target per type
+        if mime_type == GOOGLE_DOC_MIME:
+            export_mime = "application/pdf"
+            synthetic_filename = f"{original_name}.pdf"
+        elif mime_type == GOOGLE_SHEET_MIME:
+            # if your pipeline handles excel with pandas/openyxl
+            export_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            synthetic_filename = f"{original_name}.xlsx"
+            
+        elif mime_type == GOOGLE_SLIDE_MIME:
+            # Download as PDF
+            export_mime = "application/pdf"
+            synthetic_filename = f"{original_name}.pdf"
+            
+        else:
+            # Fallback: try PDF
+            export_mime = "application/pdf"
+            synthetic_filename = f"{original_name}.pdf"
+            
         request = service.files().export_media(
             fileId=req.file_id, mimeType=export_mime
         )
     else:
         # Normal Drive binary files (PDF, DOCX, etc.)
+        synthetic_filename = original_name # already has extenation
         request = service.files().get_media(fileId=req.file_id)
-
+        
     downloader = MediaIoBaseDownload(buf, request)
     done = False
     while not done:
         status_chunk, done = downloader.next_chunk()
-        # optional: log status_chunk.progress()
-
+        #log(status_chunk.progress())
+        logger.warning("Download %d%%", int(status_chunk.progress() * 100))
+        
     raw_bytes = buf.getvalue()
-
-    # 3) Run through your existing extraction pipeline
-    text = extract_text_from_upload(filename, raw_bytes)
+    
+    # Run through the existing extraction pipeline using synthetic filename
+    text = extract_text_from_upload(synthetic_filename, raw_bytes)
     if not isinstance(text, str) or not text.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No text could be extracted from the Google Drive file.",
+            detail="No text could be extracted from the GOOGLE Drive file.",
         )
-
+        
     doc_id = str(uuid.uuid4())
     metadata = {
-        "filename": filename,
-        "title": req.title or filename,
+        "filename": original_name,
+        "title": req.title or original_name,
         "content_type": mime_type,
         "source": "google_drive",
         "drive_file_id": req.file_id,
         "tenant_id": tenant_id,
         "collection": req.collection_name,
     }
-
+    
     result = await store.add_document(
         tenant_id=tenant_id,
         collection_name=req.collection_name,
         doc_id=doc_id,
         text=text,
-        metadata=metadata,
+        metadata=metadata
     )
-
+    
     if result.get("status") != "ok":
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.get("message", "Indexing failed"),
+            detail=request.get("message", "Indexing failed!"),
         )
+        
+    return {"status": "ok", "doc_id": doc_id}                        
+            
+                
+            
 
-    return {"status": "ok", "doc_id": doc_id}
+
+
+# @router.post("/ingest")
+# async def ingest_drive_file(
+#     req: DriveIngestRequest,
+#     db: Session = Depends(get_db),
+#     store: MultiTenantChromaStoreManager = Depends(get_store),
+#     current_user: DBUser = Depends(require_tenant_admin),
+# ):
+#     """
+#     Download a file from Google Drive for this tenant and ingest it into a collection.
+#     """
+#     tenant_id = current_user.tenant_id
+#     service = get_drive_service_for_tenant(tenant_id, db)
+
+#     # 1) Get file metadata
+#     file_meta = (
+#         service.files()
+#         .get(fileId=req.file_id, fields="id, name, mimeType")
+#         .execute()
+#     )
+#     filename = file_meta["name"]
+#     mime_type = file_meta.get("mimeType", "")
+
+#     # 2) Download or export contents
+#     buf = BytesIO()
+#     if mime_type.startswith("application/vnd.google-apps"):
+#         # Google Docs/Sheets/Slides/etc → export to PDF
+#         export_mime = "application/pdf"
+#         request = service.files().export_media(
+#             fileId=req.file_id, mimeType=export_mime
+#         )
+#     else:
+#         # Normal Drive binary files (PDF, DOCX, etc.)
+#         request = service.files().get_media(fileId=req.file_id)
+
+#     downloader = MediaIoBaseDownload(buf, request)
+#     done = False
+#     while not done:
+#         status_chunk, done = downloader.next_chunk()
+#         # optional: log status_chunk.progress()
+
+#     raw_bytes = buf.getvalue()
+
+#     # 3) Run through your existing extraction pipeline
+#     text = extract_text_from_upload(filename, raw_bytes)
+#     if not isinstance(text, str) or not text.strip():
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="No text could be extracted from the Google Drive file.",
+#         )
+
+#     doc_id = str(uuid.uuid4())
+#     metadata = {
+#         "filename": filename,
+#         "title": req.title or filename,
+#         "content_type": mime_type,
+#         "source": "google_drive",
+#         "drive_file_id": req.file_id,
+#         "tenant_id": tenant_id,
+#         "collection": req.collection_name,
+#     }
+
+#     result = await store.add_document(
+#         tenant_id=tenant_id,
+#         collection_name=req.collection_name,
+#         doc_id=doc_id,
+#         text=text,
+#         metadata=metadata,
+#     )
+
+#     if result.get("status") != "ok":
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=result.get("message", "Indexing failed"),
+#         )
+
+#     return {"status": "ok", "doc_id": doc_id}
 
 
            

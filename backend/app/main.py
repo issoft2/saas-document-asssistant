@@ -58,6 +58,8 @@ VENDOR_TENANT_ID = os.getenv("VENDOR_TENANT_ID", "vendor-root")  # special tenan
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
+from sqlalchemy import text
+
 @app.on_event("startup")
 def seed_vendor_user():
     with Session(engine) as session:
@@ -79,3 +81,14 @@ def seed_vendor_user():
         )
         session.add(user)
         session.commit()
+
+
+@app.on_event("startup")
+def ensure_chat_messages_schema():
+    # uses the same global `engine` you already use for Session(engine)
+    with engine.connect() as conn:
+        res = conn.execute(text("PRAGMA table_info(chat_messages);"))
+        cols = [row[1] for row in res.fetchall()]
+        if "doc_id" not in cols:
+            conn.execute(text("ALTER TABLE chat_messages ADD COLUMN doc_id TEXT;"))
+            conn.commit()

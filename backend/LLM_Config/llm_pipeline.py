@@ -2,8 +2,44 @@ from typing import List, Dict, Any, Tuple, Literal, Optional, AsyncGenerator
 import json
 
 from LLM_Config.llm_setup import llm_client, suggestion_llm_client, llm_client_streaming
-from LLM_Config.system_user_prompt import create_context, create_suggestion_prompt
+from LLM_Config.system_user_prompt import create_context, create_suggestion_prompt, create_critique_prompt
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
+
+
+import textwrap
+
+RERANK_SYSTEM_PROMPT = """
+You are a ranking assistant.
+
+Goal:
+- Given a user question and a list of text snippets, rank the snippets from most relevant to least relevant.
+
+Instructions:
+- Consider semantic relevance to the user question.
+- Respond with ONLY a JSON array of indices (0-based) in descending order of relevance.
+  For example: [2, 0, 1]
+""".strip()
+
+
+def build_rerank_messages(question: str, snippets: list[str]) -> list[dict]:
+    numbered = "\n\n".join(
+        [f"[{i}] {textwrap.shorten(s, width=800, placeholder='...')}" for i, s in enumerate(snippets)]
+    )
+    user_content = f"""
+User question:
+{question}
+
+Snippets to rank (0-based indices in brackets):
+{numbered}
+
+Return a JSON array of indices from most relevant to least relevant.
+""".strip()
+
+    return [
+        {"role": "system", "content": RERANK_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
 
 
 IntentType = Literal["FOLLOWUP_ELABORATE", "NEW_QUESTION", "CHITCHAT", "UNSURE"]
@@ -197,7 +233,6 @@ def infer_intent_and_rewrite(
 
     return intent, rewritten, domain
 
-
 async def llm_pipeline_stream(
     store: MultiTenantChromaStoreManager,
     tenant_id: str,
@@ -205,14 +240,14 @@ async def llm_pipeline_stream(
     history: Optional[List[Tuple[str, str]]] = None,
     top_k: int = 5,
     result_holder: Optional[dict] = None,
-    last_doc_id: Optional[str] = None,   # <-- NEW: anchor doc for follow-ups
+    last_doc_id: Optional[str] = None,   # anchor doc for follow-ups
 ) -> AsyncGenerator[str, None]:
     intent, rewritten, domain = infer_intent_and_rewrite(
         user_message=question,
         history_turns=history,
     )
 
-    # CHITCHAT: short acknowledgement, not the long greeting
+    # CHITCHAT: short acknowledgement
     if intent == "CHITCHAT":
         msg = "You’re welcome."
         if result_holder is not None:
@@ -223,10 +258,9 @@ async def llm_pipeline_stream(
 
     effective_question = rewritten or question
 
-    # Build optional filter for follow-ups / implications / strategy
+    # Optional filter for follow-ups / implications / strategy
     query_filter = None
     if intent in {"FOLLOWUP_ELABORATE", "IMPLICATIONS", "STRATEGY"} and last_doc_id:
-        # Adapt this to your Chroma where/filter API
         query_filter = {"doc_id": last_doc_id}
 
     retrieval = await store.query_policies(
@@ -234,7 +268,7 @@ async def llm_pipeline_stream(
         collection_name=None,
         query=effective_question,
         top_k=top_k,
-        where=query_filter,  # <-- pass filter when available
+        where=query_filter,
     )
     hits = retrieval.get("results", [])
 
@@ -267,13 +301,37 @@ async def llm_pipeline_stream(
         context_chunks.append(chunk_str)
         sources.append(title)
 
+    # Rerank and trim to top 3–5 chunks
+    try:
+        rerank_messages = build_rerank_messages(effective_question, context_chunks)
+        rerank_resp = suggestion_llm_client.invoke(rerank_messages)
+        rerank_raw = getattr(rerank_resp, "content", None) or str(rerank_resp)
+        indices = json.loads(rerank_raw)
+        indices = [i for i in indices if isinstance(i, int) and 0 <= i < len(context_chunks)]
+        if indices:
+            max_chunks = 5
+            indices = indices[:max_chunks]
+            context_chunks = [context_chunks[i] for i in indices]
+            sources       = [sources[i]       for i in indices]
+    except Exception:
+        max_chunks = 5
+        context_chunks = context_chunks[:max_chunks]
+        sources       = sources[:max_chunks]
+
     unique_sources = sorted(set(sources))
+
+    # Get last answer from history (if any) for follow-ups
+    last_answer_text: Optional[str] = None
+    if history:
+        # history is list of (user, assistant) tuples
+        _, last_answer_text = history[-1]
 
     system_prompt, user_prompt = create_context(
         context_chunks=context_chunks,
         user_question=effective_question,
         intent=intent,
         domain=domain,
+        last_answer=last_answer_text,   # NEW: pass summary anchor into prompt builder
     )
 
     messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}]
@@ -295,12 +353,35 @@ async def llm_pipeline_stream(
                     text = chunk.generations[0].text  # type: ignore
                 except Exception:
                     text = ""
-
             if text:
                 full_answer_parts.append(text)
                 yield text
 
         full_answer = "".join(full_answer_parts)
+
+        # ---- CRITIQUE BLOCK ----
+        context_text = "\n\n".join(context_chunks)
+
+        critique_messages = create_critique_prompt(
+            user_question=question,
+            assistant_answer=full_answer,          # use full_answer here
+            context_text=context_text[:2000],
+        )
+
+        try:
+            critique_resp = suggestion_llm_client.invoke(critique_messages)
+            critique = getattr(critique_resp, "content", None) or str(critique_resp)
+            critique = critique.strip().upper()
+        except Exception:
+            critique = "OK"
+
+        if critique == "BAD":
+            full_answer = (
+                "The previous attempt was not fully consistent with the available documents. "
+                "Here is a more precise answer based strictly on the context:\n\n"
+                + full_answer
+            )
+        # ---- END CRITIQUE BLOCK ----
 
         if result_holder is not None:
             result_holder["answer"] = full_answer
@@ -325,100 +406,5 @@ async def llm_pipeline(
     history: Optional[List[Tuple[str, str]]] = None,
     top_k: int = 5,
 ) -> Dict[str, Any]:
-    intent, rewritten, domain = infer_intent_and_rewrite(
-        user_message=question,
-        history_turns=history,
-    )
-
-    # CHITCHAT: short acknowledgement
-    if intent == "CHITCHAT":
-        return {
-            "answer": "You’re welcome.",
-            "follow_up": [],
-            "sources": [],
-        }
-
-    effective_question = rewritten or question
-
-    retrieval = await store.query_policies(
-        tenant_id=tenant_id,
-        collection_name=None,
-        query=effective_question,
-        top_k=top_k,
-    )
-    hits = retrieval.get("results", [])
-
-    if not hits:
-        return {
-            "answer": (
-                "The information I have access to right now is not sufficient to answer this question. "
-                "Please consider checking with the appropriate internal team or rephrasing with more detail."
-            ),
-            "follow_up": [],
-            "sources": [],
-        }
-
-    context_chunks: List[str] = []
-    sources: List[str] = []
-
-    for hit in hits:
-        doc_text = hit["document"]
-        meta = hit.get("metadata", {}) or {}
-        title = meta.get("title") or meta.get("filename") or "Unknown document"
-        section = meta.get("section")
-
-        header_parts = [f"Title: {title}"]
-        if section:
-            header_parts.append(f"Section: {section}")
-        header = " | ".join(header_parts)
-
-        chunk_str = f"{header}\n\n{doc_text}"
-        context_chunks.append(chunk_str)
-        sources.append(title)
-
-    unique_sources = sorted(set(sources))
-
-    system_prompt, user_prompt = create_context(
-        context_chunks=context_chunks,
-        user_question=effective_question,
-        intent=intent,
-        domain=domain,
-    )
-
-    messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}]
-
-    if history:
-        for user_msg, assistant_msg in history:
-            messages.append({"role": "user", "content": user_msg})
-            messages.append({"role": "assistant", "content": assistant_msg})
-
-    messages.append({"role": "user", "content": user_prompt})
-
-    try:
-        response = llm_client.invoke(messages)
-        answer = getattr(response, "content", None) or str(response)
-    except Exception:
-        return {
-            "answer": "There was a temporary problem contacting the language model. Please try again.",
-            "follow_up": [],
-            "sources": unique_sources,
-        }
-
-    answer = answer.strip()
-
-    # Suggestions (best-effort)
-    follow_ups: List[Any] = []
-    suggestion_message = create_suggestion_prompt(question, answer)
-
-    try:
-        raw = suggestion_llm_client.invoke(suggestion_message)
-        raw_content = getattr(raw, "content", None) or str(raw)
-        follow_ups = json.loads(raw_content)
-    except Exception:
-        follow_ups = []
-
-    return {
-        "answer": answer,
-        "follow_up": follow_ups,
-        "sources": unique_sources,
-    }
+    pass
+   # no longer in use for now but could still be called some where in the code.

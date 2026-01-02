@@ -34,6 +34,7 @@ time range, or source document.
 you MUST compute these percentages and list them explicitly. Use plain-text formulas where helpful, such as "Percentage = (Monthly value / Total for the year) * 100",
 instead of LaTeX, so that the answer is easy to read in a chat interface.
 
+
 Handling cash flow / projections / related concepts (finance-specific behavior):
 - Users may ask about “cash flow”, “cash flow projection”, or “cash flow report” even if the documents only contain related data such as monthly cash balances, revenue, expenses, or net income.
 - If there is NO explicit cash flow statement, but there ARE related figures:
@@ -47,6 +48,9 @@ Handling cash flow / projections / related concepts (finance-specific behavior):
   - You may describe trends and simple extrapolations qualitatively, but do NOT invent specific future numeric projections unless the user explicitly requests a hypothetical example and understands it is illustrative.
   - When you answer a cash flow–style question using cash balances, revenue, expenses, or net income (because there is no formal cash flow statement), clearly label this as a "cash flow view based on available figures" rather than implying that it is a formal cash flow statement. For example: "This is a cash flow view based on monthly cash balances and net income, not a formal cash flow statement."
 
+- When a question requires reasoning across several points (for example, combining definitions, formulas,
+  and lifecycle stages), think through the steps quietly and then present a clear, concise final answer.
+  
 Context usage:
 - You receive:
   - A user question.
@@ -270,9 +274,16 @@ def create_context(
     user_question: str,
     intent: str = "GENERAL",
     domain: str = "GENERAL",
+    last_answer: Optional[str] = None,   # <-- NEW
+
 ):
      # 1) Build context text
     context_lines = ["Context documents:", ""]
+     # NEW: for follow-up / implications / strategy, include last answer summary if provided
+    if intent in {"FOLLOWUP_ELABORATE", "IMPLICATIONS", "STRATEGY"} and last_answer:
+        context_lines.insert(1, f"Summary of your last answer: {last_answer[:600]}")
+        context_lines.insert(2, "")  # blank line
+        
     for i, chunk in enumerate(context_chunks, 1):
         context_lines.append(f"[Document {i}]")
         context_lines.append(chunk)
@@ -292,6 +303,8 @@ def create_context(
             "describe trends or partial views instead of saying the documents do not specify. "
             "When summarizing financial figures, use clear Markdown bullet lists with each item on its own line "
             "(e.g., '- Total revenue: ...', '- Total expenses: ...') and headings separated by blank lines."
+            "When the user asks how you arrived at a numeric answer, restate the formula and show each arithmetic step "
+            "clearly before giving the final result."
         )
 
     if intent == "PROCEDURE":
@@ -360,6 +373,43 @@ Answer:
   
   
 
+CRITIQUE_SYSTEM_PROMPT = """
+You are a strict reviewer for an internal company assistant.
+
+Goal:
+- Check whether the assistant's answer is consistent with:
+  1) The user's question, and
+  2) The provided document context.
+
+Instructions:
+- If the answer is clearly off-topic, contradicts the context, or ignores key parts of the question, respond with exactly: BAD
+- Otherwise, if the answer is generally consistent and reasonable given the context, respond with exactly: OK
+- Do not explain your reasoning. Output only OK or BAD.
+""".strip()
+
+
+def create_critique_prompt(
+    user_question: str,
+    assistant_answer: str,
+    context_text: str,
+) -> list[dict]:
+    user_content = f"""
+    User question:
+    {user_question}
+
+    Document context (truncated if long):
+    {context_text}
+
+    Assistant answer:
+    {assistant_answer}
+
+    Evaluate whether the answer is consistent with the question and the context.
+    Remember: respond with only OK or BAD.
+    """.strip()
+
+    system_message = {"role": "system", "content": CRITIQUE_SYSTEM_PROMPT}
+    user_message = {"role": "user", "content": user_content}
+    return [system_message, user_message]
 
         
 def create_suggestion_prompt(user_question: str, assistant_answer: str) -> list[dict]:

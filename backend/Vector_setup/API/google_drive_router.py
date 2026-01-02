@@ -17,6 +17,8 @@ from io import BytesIO
 import uuid
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
 from Vector_setup.API.ingest_routes import extract_text_from_upload
+from googleapiclient.errors import HttpError
+
 
 # Single shared store instance
 

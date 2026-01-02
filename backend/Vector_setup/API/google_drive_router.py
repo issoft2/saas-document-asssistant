@@ -361,13 +361,30 @@ async def ingest_drive_file(
         # Normal Drive binary files (PDF, DOCX, etc.)
         synthetic_filename = original_name # already has extenation
         request = service.files().get_media(fileId=req.file_id)
+    
+    try:    
+        downloader = MediaIoBaseDownload(buf, request)
+        done = False
+        while not done:
+            status_chunk, done = downloader.next_chunk()
+            #log(status_chunk.progress())
+            logger.warning("Download %d%%", int(status_chunk.progress() * 100))
+    except HttpError as e:
+        # Handle large file export limit
+        if e.resp.status == 403 and "exportSizeLimitExceeded" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This Google Drive file is too large to export. Try splitting it into smaller documents."
+            )
         
-    downloader = MediaIoBaseDownload(buf, request)
-    done = False
-    while not done:
-        status_chunk, done = downloader.next_chunk()
-        #log(status_chunk.progress())
-        logger.warning("Download %d%%", int(status_chunk.progress() * 100))
+        # Re-raise other Drive errors
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to download file from Google Drive.",
+        )    
+            
+    
+    
         
     raw_bytes = buf.getvalue()
     

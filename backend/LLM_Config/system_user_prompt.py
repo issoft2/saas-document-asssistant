@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from typing import Optional
+
 """
  Build the prompt template that ensures
  accurate, context-based answers
@@ -179,94 +181,6 @@ Goals:
 Output:
 - Return ONLY a JSON array of strings, with no extra text.
 """
-
-
-
-
-
-# def create_context(
-#     context_chunks,
-#     user_question: str,
-#     intent: str = "GENERAL",
-#     domain: str = "GENERAL",
-# ):
-#     """
-#     Build the context block and user prompt for the LLM.
-
-#     context_chunks: list of text chunks (each can already include title/metadata if you choose).
-#     user_question: the user's natural-language question.
-#     intent: high-level intent label (e.g. "NUMERIC_ANALYSIS", "LOOKUP", "PROCEDURE", "GENERAL").
-#     domain: coarse domain label (e.g. "FINANCE", "HR", "TECH", "POLICY", "GENERAL").
-
-#     Returns:
-#         system_prompt (str), user_prompt (str)
-#     """
-
-#     # 1) Build context text
-#     context_lines = ["Context documents:", ""]
-#     for i, chunk in enumerate(context_chunks, 1):
-#         context_lines.append(f"[Document {i}]")
-#         context_lines.append(chunk)
-#         context_lines.append("")
-
-#     context_text = "\n".join(context_lines).strip()
-
-#     # 2) Build intent/domain-specific guidance
-#     extra_instructions: list[str] = []
-
-#     # Numeric / financial behaviour (only if relevant)
-#     if domain == "FINANCE" or intent == "NUMERIC_ANALYSIS":
-#         extra_instructions.append(
-#             "If the context contains any financial figures (such as revenue, expenses, net income, "
-#             "cash balances, or other numeric tables), you MUST use those figures to provide the most "
-#             "informative answer you can, even if the user asks for a specific report name that does not exist. "
-#             "If there is no formal cash flow or projection report but there are related figures, clearly explain "
-#             "what data is available (for example, cash balances, revenue, expenses, net income) and use it to "
-#             "describe trends or partial views instead of saying the documents do not specify."
-#             "When summarizing financial figures, use clear Markdown bullet lists with each item on its own line (e.g., '- Total revenue: ...', '- Total expenses: ...') and headings separated by blank lines."
-#         )
-
-#     # Procedure / “how to” questions
-#     if intent == "PROCEDURE":
-#         extra_instructions.append(
-#             "When the user is asking how to do something and the context provides steps or procedures, "
-#             "present them as a clear, ordered set of steps. If multiple procedures are mentioned, choose "
-#             "the one that best matches the question."
-#         )
-
-#     # Lookup / listing questions
-#     if intent == "LOOKUP":
-#         extra_instructions.append(
-#             "When the user asks to list or look up items (such as policies, reports, or categories), "
-#             "return a concise list of the relevant items based on the context, without internal IDs."
-#         )
-
-#     # Generic fallback
-#     extra_instructions.append(
-#         "If the context contains only non-financial text related to the topic, base your answer on that text. "
-#         "Only if the context truly does not contain any relevant information should you say so and, if appropriate, "
-#         "suggest what the user should do next. Do not say the documents do not specify if you can answer by "
-#         "combining or summarizing information that is present."
-#     )
-
-#     extra_block = "\n".join(extra_instructions)
-
-#     # 3) Final user prompt
-#     user_prompt = f"""
-# Use the context below to answer the user's question.
-
-# {extra_block}
-
-# --------------------- CONTEXT START -----------------
-# {context_text}
-# ---------------------- CONTEXT END ------------------
-
-# User question: {user_question}
-
-# Answer:
-# """.strip()
-
-#     return SYSTEM_PROMPT, user_prompt
   
   
 def create_context(

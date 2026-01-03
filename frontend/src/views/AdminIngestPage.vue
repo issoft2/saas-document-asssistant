@@ -376,7 +376,7 @@
                 @change="toggleSelectAllDrive"
               />
               <span class="text-[11px] text-slate-700">
-                Select all {{ selectableDriveFiles.length }} files (excluding folders and already ingested)
+                Select all {{ selectableDriveFiles.length }} files (excluding folders, unsupported types, and already ingested)
               </span>
             </div>
             <button
@@ -420,24 +420,30 @@
                   </span>
                 </div>
               </div>
-
-              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2">
                 <span
                   v-if="file.already_ingested && !file.is_folder"
                   class="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1 py-0.5"
                 >
                   Already ingested
                 </span>
+                <span
+                  v-else-if="!file.is_folder && !file.is_supported"
+                  class="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-1 py-0.5"
+                >
+                  Unsupported
+                </span>
 
                 <input
                   v-if="!file.is_folder"
                   type="checkbox"
                   class="h-3 w-3"
-                  :disabled="file.already_ingested"
+                  :disabled="file.already_ingested || !file.is_supported"
                   :checked="selectedDriveFileIds.has(file.id)"
                   @change="toggleDriveFileSelection(file.id)"
                 />
               </div>
+
             </li>
           </ul>
         </div>
@@ -473,6 +479,7 @@ interface DriveFileOut {
   size?: number | null
   modified_time?: string | null
   already_ingested: boolean
+  is_supported: boolean
 }
 
 // ---- Collections / config state ----
@@ -709,7 +716,7 @@ async function loadGoogleDriveStatus() {
 
 const selectableDriveFiles = computed<DriveFileOut[]>(() => {
   return (driveFiles.value || []).filter(
-    f => !f.is_folder && !f.already_ingested,
+    f => !f.is_folder && !f.already_ingested  && f.is_supported
   )
 })
 
@@ -756,7 +763,7 @@ async function loadDriveFiles(folderId: string | null = null) {
     // Pre-select all non-folder, non-ingested files
     const initial = new Set(
       files
-      .filter((f: DriveFileOut) => !f.is_folder && !f.already_ingested)
+      .filter((f: DriveFileOut) => !f.is_folder && !f.already_ingested && f.is_supported)
       .map((f: DriveFileOut) => f.id)
     )
     selectedDriverFileIds.value = initial
@@ -770,7 +777,7 @@ async function loadDriveFiles(folderId: string | null = null) {
 }
 
 const selectedDriveFiles = computed(() => 
-  driveFiles.value.filter(f => !f.is_folder && !f.already_ingested),
+  driveFiles.value.filter(f => !f.is_folder && !f.already_ingested && f.is_supported),
 )
 
 

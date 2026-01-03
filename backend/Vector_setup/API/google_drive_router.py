@@ -205,6 +205,7 @@ class DriveFileOut(BaseModel):
     size: Optional[int] = None
     modified_time: Optional[str] = None
     already_ingested: bool = False
+    is_supported: bool = True
 
 
 
@@ -303,6 +304,10 @@ def list_drive_files(
             siz=int(f["size"]) if "size" in f else None,
             modified_time=f.get("modifiedTime"),
             already_ingested=f["id"] in ingested_ids,
+            is_supported=(
+                f.get("mimeType", "") in SUPPORTED_MIME_TYPES
+                and f.get("mimeType") != GOOGLE_FOLDER_MIME
+            ),
         )
         for f in files
     ]
@@ -352,6 +357,20 @@ GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
 GOOGLE_SHEET_MIME = "application/vnd.google-apps.spreadsheet"
 GOOGLE_SLIDE_MIME = "application/vnd.google-apps.presentation"
 GOOGLE_FOLDER_MIME = "application/vnd.google-apps.folder"
+
+SUPPORTED_MIME_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+    "text/plain",
+    "text/markdown",
+    # Google Workspace native types that you export:
+    GOOGLE_DOC_MIME,
+    GOOGLE_SHEET_MIME,
+    GOOGLE_SLIDE_MIME,
+}
 
 @router.post("/ingest")
 @router.post("/ingest")

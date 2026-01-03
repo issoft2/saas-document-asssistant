@@ -364,59 +364,88 @@
         <p v-if="driveIngestMessage" class="text-xs text-emerald-600 mt-2">
           {{ driveIngestMessage }}
         </p>
-              <ul
-                v-if="driveFiles.length"
-                class="mt-3 space-y-1 max-h-60 overflow-auto text-xs"
-              >
-                <li
-                  v-for="file in driveFiles"
-                  :key="file.id"
-                  class="flex items-center justify-between px-2 py-1 rounded-md hover:bg-slate-100 cursor-pointer"
-                  @click="onDriveItemClick(file)" 
+
+        <div v-if="driveFiles.length" class="mt-3 text-xs max-h-72 overflow-auto space-y-2">
+          <!-- Select all row -->
+          <div class="flex items-center justify-between px-2 py-1 rounded-md bg-slate-50">
+            <div class="flex items-center gap-2">
+              <input
+                type="checkbox"
+                :checked="allSelected"
+                :indeterminate.prop="someSelected"
+                @change="toggleSelectAllDrive"
+              />
+              <span class="text-[11px] text-slate-700">
+                Select all {{ selectableDriveFiles.length }} files (excluding folders and already ingested)
+              </span>
+            </div>
+            <button
+              type="button"
+              class="btn-primary text-[11px]"
+              :disabled="ingesting || selectableDriveFiles.length === 0"
+              @click="ingestSelectedDriveFiles"
+            >
+              {{ ingesting ? 'Ingesting…' : 'Ingest selected' }}
+            </button>
+          </div>
+
+          <!-- File list -->
+          <ul class="space-y-1">
+            <li
+              v-for="file in driveFiles"
+              :key="file.id"
+              class="flex items-center justify-between px-2 py-1 rounded-md hover:bg-slate-100"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <span
+                  class="inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-semibold flex-shrink-0"
+                  :class="file.is_folder
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    : 'bg-slate-800 text-slate-100 border border-slate-600'"
                 >
-                  <div class="flex items-center gap-2 min-w-0">
-                    <span
-                      class="inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-semibold flex-shrink-0"
-                      :class="file.is_folder
-                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                        : 'bg-slate-800 text-slate-100 border border-slate-600'"
-                    >
-                      <span v-if="file.is_folder">F</span>
-                      <span v-else>•</span>
-                    </span>
+                  <span v-if="file.is_folder">F</span>
+                  <span v-else>•</span>
+                </span>
 
-                    <div class="flex flex-col min-w-0">
-                      <span
-                        class="truncate"
-                        :class="file.is_folder ? 'text-amber-800 font-medium' : 'text-slate-800'"
-                      >
-                        {{ file.name }}
-                      </span>
-                      <span class="text-[10px] text-slate-400 truncate">
-                        {{ file.mime_type }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- Ingest only for non-folders; .stop prevents row click -->
-                  <button
-                    v-if="!file.is_folder"
-                    type="button"
-                    class="btn-primary text-[11px] ml-2"
-                    @click.stop="onIngestDriveFile(file)"
+                <div class="flex flex-col min-w-0">
+                  <span
+                    class="truncate"
+                    :class="file.is_folder ? 'text-amber-800 font-medium' : 'text-slate-800'"
+                    @click="onDriveItemClick(file)"
                   >
-                    Ingest
-                  </button>
-                </li>
-              </ul>
+                    {{ file.name }}
+                  </span>
+                  <span class="text-[10px] text-slate-400 truncate">
+                    {{ file.mime_type }}
+                  </span>
+                </div>
+              </div>
 
+              <div class="flex items-center gap-2">
+                <span
+                  v-if="file.already_ingested && !file.is_folder"
+                  class="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1 py-0.5"
+                >
+                  Already ingested
+                </span>
+
+                <input
+                  v-if="!file.is_folder"
+                  type="checkbox"
+                  class="h-3 w-3"
+                  :disabled="file.already_ingested"
+                  :checked="selectedDriveFileIds.has(file.id)"
+                  @change="toggleDriveFileSelection(file.id)"
+                />
+              </div>
+            </li>
+          </ul>
+        </div>
 
         <p v-else-if="!driveLoading" class="text-[11px] text-slate-400 mt-2">
           No files loaded yet. Click "Load Drive files" to see your Drive.
         </p>
       </section>
-
-
 
   </div>
 </template>
@@ -441,6 +470,9 @@ interface DriveFileOut {
   name: string
   mime_type: string
   is_folder: boolean
+  size?: number | null
+  modified_time?: string | null
+  already_ingested: boolean
 }
 
 // ---- Collections / config state ----
@@ -481,6 +513,8 @@ const driveIngestMessage = ref('')
 
 const currentFolderId = ref<string | null>(null)
 const driveFiles = ref<DriveFileOut[]>([])
+const selectedDriverFileIds = ref<Set<string>>(new Set())
+const ingesting = ref(false)  
 
 // ---- Role awareness ----
 const currentUser = computed(() => authState.user)
@@ -677,9 +711,19 @@ async function loadDriveFiles(folderId: string | null = null) {
   driveLoading.value = true
   driveError.value = ''
   driveIngestMessage.value = ''
+  selectedDriverFileIds.value = new Set()
   try {
     const resp = await listDriveFiles(folderId ? { folder_id: folderId } : {})
-    driveFiles.value = resp.data || []
+    const files = resp.data || []
+    driveFiles.value = files
+
+    // Pre-select all non-folder, non-ingested files
+    const initial = new Set(
+      files
+      .filter((f: DriveFileOut) => !f.is_folder && !f.already_ingested)
+      .map((f: DriveFileOut) => f.id)
+    )
+    selectedDriverFileIds.value = initial
   } catch (e) {
     console.error('Failed to load Drive files', e)
     driveError.value = 'Failed to load Google Drive files.'
@@ -689,6 +733,40 @@ async function loadDriveFiles(folderId: string | null = null) {
   }
 }
 
+const selectedDriveFiles = computed(() => 
+  driveFiles.value.filter(f => !f.is_folder && !f.already_ingested),
+)
+
+const allSelected = computed(() => 
+selectedDriveFiles.value.length > 0 &&
+selectedDriveFiles.value.every(f => selectedDriverFileIds.value.has(f.id)),
+)
+
+const someSelected = computed(() => 
+  selectedDriveFiles.value.some(f => selectedDriverFileIds.value.has(f.id)) && 
+  !allSelected.value,
+)
+
+function toggleSelectAllDrive() {
+  const next = new Set(selectedDriverFileIds.value)
+  if(allSelected.value) {
+    // deselect all selectable
+    selectedDriveFiles.value.forEach(f => next.delete(f.id))
+
+  }else {
+    // Select all selectable
+    selectedDriveFiles.value.forEach(f => next.add(f.id))
+  }
+  selectedDriverFileIds.value = next
+}
+
+function toggleDriveFileSelection(fileId: string) {
+  const next = new Set(selectedDriverFileIds.value)
+  if (next.has(fileId)) next.delete(fileId)
+  else next.add(fileId)
+  selectedDriverFileIds.value = next
+}
+
 function onDriveItemClick(fileObj: DriveFileOut) {
   if (fileObj.is_folder) {
     loadDriveFiles(fileObj.id)
@@ -696,30 +774,49 @@ function onDriveItemClick(fileObj: DriveFileOut) {
   // Files are handled by the Ingest button (@click.stop)
 }
 
-async function onIngestDriveFile(fileObj: DriveFileOut) {
+async function ingestSelectedDriveFiles() {
   driveError.value = ''
   driveIngestMessage.value = ''
 
   if (!currentTenantId.value) {
-    driveError.value = 'No tenant is associated with your account.'
-    return
+      driveError.value = 'No tenant is associated with your account.'
+      return 
   }
   if (!activeCollectionName.value) {
     driveError.value = 'Select a collection before ingesting from Drive.'
+    return 
+  }
+
+  const ids = Array.from(selectedDriverFileIds.value)
+  if (!ids.length) {
+    driveError.value = 'No files selected for ingestion.'
     return
   }
 
+  ingesting.value = true
   try {
-    await ingestDriveFile({
-      fileId: fileObj.id,
-      collectionName: activeCollectionName.value,
-      title: fileObj.name,
-    })
-    driveIngestMessage.value = `Ingested "${fileObj.name}" from Google Drive.`
+    // simplest: loop; you can introduce a batch endpoint later
+    for (const id of ids) {
+      const fileObj = driveFiles.value.find(f => f.id == id)
+      if (!fileObj) continue
+
+      await ingestDriveFile({
+        fileId: fileObj.id,
+        collectionName: activeCollectionName.value,
+        title: fileObj.name,
+      })
+    }
+
+    driveIngestMessage.value = `Ingested ${ids.length} files(s) from Google Drive.`
+    // Refresh list so already_ingested flags update
+    await loadDriveFiles(currentFolderId.value)
   } catch (e) {
-    console.error('Failed to ingest Drive file', e)
-    driveError.value = 'Failed to ingest file from Google Drive.'
+     console.error('Failed to ingest Drive files', e)
+     driveError.value = 'Failed to ingest one or more files from Google Drive.'
+  } finally {
+    ingesting.value = false
   }
+
 }
 
 // ---- Lifecycle ----

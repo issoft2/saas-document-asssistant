@@ -54,6 +54,18 @@ class TenantGoogleDriveConfig(SQLModel, table=True):
         UniqueConstraint("tenant_id", name="uq_drivecfg_tenant"),
     )
         
+        
+class IngestedDriveFile(SQLModel, table=True):
+    __tablename__ = "ingested_drive_files"
+    
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: str = Field(index=True)
+    drive_file_id: str = Field(index=True)
+    filename: str
+    mime_type: str
+    # Optional: has/versioning fields later
+    # content_has: Optional[str] = None
+    # last_ingested_at: datetime = Field(default_factory=datetime.utcnow)        
 
 def init_db():
     SQLModel.metadata.create_all(engine)

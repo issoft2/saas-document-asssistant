@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Tuple, Literal, Optional, AsyncGenerator
 import json
 import textwrap
 
-from LLM_Config.llm_setup import llm_client, suggestion_llm_client, llm_client_streaming
+from LLM_Config.llm_setup import llm_client, suggestion_llm_client, llm_client_streaming, formatter_llm_client
 from LLM_Config.system_user_prompt import create_context, create_suggestion_prompt, create_critique_prompt
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
 import logging
@@ -335,6 +335,28 @@ def infer_intent_and_rewrite(
 
     return intent, rewritten, domain
 
+def create_formatter_prompt(raw_answer: str) -> list[dict]:
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are a formatting assistant.\n\n"
+                "Your job is to rewrite the given answer into a clear, human-readable format.\n\n"
+                "Rules:\n"
+                "- Use clear section headings\n"
+                "- Use bullet points where appropriate\n"
+                "- Preserve ALL factual content\n"
+                "- Do NOT add new information\n"
+                "- Do NOT remove information\n"
+                "- Use Markdown formatting\n"
+                "- Prefer structured breakdowns over long paragraphs\n"
+            )
+        },
+        {
+            "role": "user",
+            "content": raw_answer
+        }
+    ]
 
 
 async def llm_pipeline_stream(
@@ -476,54 +498,78 @@ async def llm_pipeline_stream(
     messages.append({"role": "user", "content": user_prompt})
 
     try:
+        # =========================
+        # PASS 1: STREAMED ANSWER
+        # =========================
         full_answer_parts: List[str] = []
 
         async for chunk in llm_client_streaming.astream(messages):
-            text = getattr(chunk, "content", None) or ""
+            text = getattr(chunk, "content", "") or ""
             if not text:
+                # fallback for older response formats
                 try:
                     text = chunk.generations[0].text  # type: ignore
                 except Exception:
                     text = ""
             if text:
                 full_answer_parts.append(text)
-                yield text
+                yield text  # stream raw tokens to user
 
-        full_answer = "".join(full_answer_parts)
+        # Combine streamed chunks
+        raw_answer = "".join(full_answer_parts)
 
+        # =========================
+        # PASS 2: CRITIQUE
+        # =========================
         context_text = "\n\n".join(context_chunks)
         critique_messages = create_critique_prompt(
             user_question=question,
-            assistant_answer=full_answer,
+            assistant_answer=raw_answer,
             context_text=context_text[:2000],
         )
 
         try:
             critique_resp = suggestion_llm_client.invoke(critique_messages)
-            critique = getattr(critique_resp, "content", None) or str(critique_resp)
-            critique = critique.strip().upper()
+            critique = (getattr(critique_resp, "content", "") or "").strip().upper()
         except Exception:
             critique = "OK"
 
+        # Prepend warning if answer is BAD
         if critique == "BAD":
-            full_answer = (
-                "The previous attempt was not fully consistent with the available documents. "
-                "Here is a more precise answer based strictly on the context:\n\n"
-                + full_answer
+            raw_answer = (
+                "⚠️ **Warning:** The previous attempt may not be fully consistent with the available documents. "
+                "Here is a corrected response strictly based on the context:\n\n"
+                + raw_answer
             )
 
+        # =========================
+        # PASS 3: FORMATTER
+        # =========================
+        formatter_messages = create_formatter_prompt(raw_answer)
+
+        try:
+            formatted_resp = formatter_llm_client.invoke(formatter_messages)
+            formatted_answer = getattr(formatted_resp, "content", raw_answer)
+        except Exception:
+            formatted_answer = raw_answer  # fallback to unformatted
+
+        # =========================
+        # STORE & RETURN FINAL ANSWER
+        # =========================
         if result_holder is not None:
-            result_holder["answer"] = full_answer
+            result_holder["answer"] = formatted_answer
             result_holder["sources"] = unique_sources
 
-    except Exception:
-        error_msg = "There was a temporary problem contacting the model, please try again."
+        # Yield the fully formatted answer after streaming raw answer
+        yield formatted_answer
+
+    except Exception as e:
+        error_msg = f"There was a temporary problem generating the answer: {str(e)}"
         if result_holder is not None:
             result_holder["answer"] = error_msg
             result_holder["sources"] = unique_sources
         yield error_msg
         return
-
 
 
 

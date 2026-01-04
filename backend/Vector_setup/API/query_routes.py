@@ -9,7 +9,6 @@ from sqlmodel import Session
 from Vector_setup.user.db import get_db
 from Vector_setup.API.ingest_routes import get_store
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
-from LLM_Config.llm_pipeline import llm_pipeline
 from Vector_setup.user.auth_jwt import get_current_user, TokenUser  # <-- add this
 from Vector_setup.base.auth_models import UserOut
 from Vector_setup.chat_history.chat_store import get_last_n_turns, save_chat_turn
@@ -48,13 +47,7 @@ async def query_policies_api(
     
         
     # 3) Call LLM pipeline with history    
-    response_text = await llm_pipeline(
-        store=store,
-        tenant_id=current_user.tenant_id,
-        question=req.question,
-        history=history_turns,
-        top_k=req.top_k,
-    )
+    response_text = None
     
     # 4) Save this new turn
     if not req.conversation_id:

@@ -319,6 +319,10 @@ class MultiTenantChromaStoreManager:
             collections = [
                 c for c in all_cols if getattr(c, "name", "").startswith(prefix)
             ]
+            
+        if not collections:
+            logger.info("No collections found for tenant %s", tenant_id)
+            return {"query": query, "results": []}    
 
         for col in collections:
             logger.debug(

@@ -170,7 +170,6 @@ def _format_history_for_intent(
         lines.append(f"Assistant: {assistant_msg}")
     return "\n".join(lines)
 
-
 def infer_intent_and_rewrite(
     user_message: str,
     history_turns: Optional[List[Tuple[str, str]]] = None,
@@ -265,14 +264,40 @@ def infer_intent_and_rewrite(
         {"role": "user", "content": prompt},
     ]
 
-    # 6) LLM-based intent + rewrite
+    # 6) LLM-based intent + rewrite (robust JSON parsing)
+    llm_intent = "UNSURE"
+    rewritten: Optional[str] = None
+
     try:
         resp = suggestion_llm_client.invoke(messages)
         raw = getattr(resp, "content", None) or str(resp)
-        data = json.loads(raw)
-        llm_intent = (data.get("intent") or "UNSURE").strip().upper()
-        rewritten = data.get("rewritten_question") or None
-    except Exception:
+        raw = raw.strip()
+
+        data = None
+
+        # Fast path: pure JSON
+        try:
+            data = json.loads(raw)
+        except Exception:
+            # Try to extract JSON object from within surrounding text
+            start = raw.find("{")
+            end = raw.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                candidate = raw[start : end + 1]
+                try:
+                    data = json.loads(candidate)
+                except Exception:
+                    data = None
+
+        if isinstance(data, dict):
+            llm_intent = (data.get("intent") or "UNSURE").strip().upper()
+            rewritten_raw = (data.get("rewritten_question") or "").strip()
+            rewritten = rewritten_raw or None
+        else:
+            raise ValueError("Intent classifier did not return a JSON object")
+
+    except Exception as e:
+        logger.warning("Intent parsing failed: %r", e)
         llm_intent = "UNSURE"
         rewritten = None
 
@@ -303,6 +328,7 @@ def infer_intent_and_rewrite(
         domain = "GENERAL"
 
     return intent, rewritten, domain
+
 
 
 async def llm_pipeline_stream(

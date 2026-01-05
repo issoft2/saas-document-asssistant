@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { authState, logout } from '../authStore'
 
 export function useQueryStream() {
   const answer = ref('')
@@ -7,9 +8,9 @@ export function useQueryStream() {
   const suggestions = ref<string[]>([])
 
   const isStreaming = ref(false)
-  const eventSource = ref<EventSource | null>(null)
+  const abortController = ref<AbortController | null>(null)
 
-  const startStream = (payload: {
+  const startStream = async (payload: {
     question: string
     conversation_id: string
     top_k?: number
@@ -22,6 +23,7 @@ export function useQueryStream() {
     status.value = ''
     isStreaming.value = true
 
+    // Build query params
     const params = new URLSearchParams({
       question: payload.question,
       conversation_id: payload.conversation_id,
@@ -29,61 +31,116 @@ export function useQueryStream() {
       collection_name: payload.collection_name ?? '',
     })
 
+    // Attach token as query param (to match your backend)
     const token = localStorage.getItem('access_token')
     if (token) {
       params.set('token', token)
     }
 
-    // Close any previous stream
-    if (eventSource.value) {
-      eventSource.value.close()
-      eventSource.value = null
+    // Cancel any previous stream
+    if (abortController.value) {
+      abortController.value.abort()
     }
+    const controller = new AbortController()
+    abortController.value = controller
 
-    const es = new EventSource(`/api/query/stream?${params.toString()}`)
-    eventSource.value = es
+    try {
+      const base = import.meta.env.VITE_API_BASE_URL || '/api'
+      const url = `${base}/query/stream?${params.toString()}`
 
-    es.addEventListener('status', (e: MessageEvent) => {
-      const msg = e.data || ''
-      status.value = msg
-      if (msg) statuses.value.push(msg)
-    })
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: controller.signal,
+      })
 
-    es.addEventListener('token', (e: MessageEvent) => {
-      const delta = (e.data || '').replace(/<\|n\|>/g, '\n')
-      answer.value += delta
-    })
-
-    es.addEventListener('suggestions', (e: MessageEvent) => {
-      try {
-        const parsed = JSON.parse(e.data || '[]')
-        suggestions.value = Array.isArray(parsed) ? parsed : []
-      } catch {
-        suggestions.value = []
+      if (response.status === 401 || response.status === 403) {
+        // Token expired / unauthorized: logout and stop
+        logout()
+        isStreaming.value = false
+        return
       }
-    })
 
-    es.addEventListener('done', () => {
-      status.value = 'Completed'
-      statuses.value.push('Completed')
-      isStreaming.value = false
-      es.close()
-      eventSource.value = null
-    })
+      if (!response.ok || !response.body) {
+        status.value = `Error: stream failed with status ${response.status}`
+        statuses.value.push(status.value)
+        isStreaming.value = false
+        return
+      }
 
-    es.onerror = () => {
-      status.value = 'Error occurred during streaming.'
-      statuses.value.push('Error occurred during streaming.')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        // SSE chunks separated by blank lines
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
+
+        for (const part of parts) {
+          // Each part looks like:
+          // event: status
+          // data: ...
+          const lines = part.split('\n')
+          let eventType = 'message'
+          let data = ''
+
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              eventType = line.slice('event:'.length).trim()
+            } else if (line.startsWith('data:')) {
+              data += line.slice('data:'.length).trim()
+            }
+          }
+
+          if (eventType === 'status') {
+            const msg = data || ''
+            status.value = msg
+            if (msg) statuses.value.push(msg)
+          } else if (eventType === 'token') {
+            const delta = (data || '').replace(/<\|n\|>/g, '\n')
+            answer.value += delta
+          } else if (eventType === 'suggestions') {
+            try {
+              const parsed = JSON.parse(data || '[]')
+              suggestions.value = Array.isArray(parsed) ? parsed : []
+            } catch {
+              suggestions.value = []
+            }
+          } else if (eventType === 'done') {
+            status.value = 'Completed'
+            statuses.value.push('Completed')
+            isStreaming.value = false
+            controller.abort()
+            abortController.value = null
+            return
+          }
+        }
+      }
+
+      // Stream ended without explicit "done"
       isStreaming.value = false
-      es.close()
-      eventSource.value = null
+      abortController.value = null
+    } catch (err) {
+      if (controller.signal.aborted) {
+        status.value = 'Stopped'
+        statuses.value.push('Stopped')
+      } else {
+        status.value = 'Error occurred during streaming.'
+        statuses.value.push('Error occurred during streaming.')
+      }
+      isStreaming.value = false
+      abortController.value = null
     }
   }
 
   const stopStream = () => {
-    if (eventSource.value) {
-      eventSource.value.close()
-      eventSource.value = null
+    if (abortController.value) {
+      abortController.value.abort()
+      abortController.value = null
     }
     status.value = 'Stopped'
     statuses.value.push('Stopped')

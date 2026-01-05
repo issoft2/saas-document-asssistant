@@ -11,6 +11,13 @@ services:
       HF_HUB_DISABLE_XET: "1" 
       APP_RESET_DATA: "false" 
       CHROMA_PATH: "/app/chromadb_multi_tenant" 
+
+      SMTP_HOST: "smtp.gmail.com"
+      SMTP_PORT: "465"
+      SMTP_USER: "specisaac@gmail.com"
+      SMTP_PASSWORD: "yqnv_exoh_afif_wksv"
+      SMTP_FROM_NAME: "issoft"
+      SMTP_USE_SSL: "true"
     volumes:
       - chroma_data:/app/chromadb_multi_tenant
       - ./data:/app/data

@@ -1,17 +1,18 @@
 from fastapi import APIRouter, HTTPException, Depends, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
-from sqlmodel import Session
+from sqlmodel import Session, select
+
 
 from Vector_setup.base.auth_models import UserCreate, UserOut, LoginRequestTenant
 from Vector_setup.user.auth_store import create_user, get_user_by_email, login_tenant_request, create_first_login_token
 from Vector_setup.user.auth_jwt import create_access_token, authenticate_user, ACCESS_TOKEN_EXPIRE_MINUTES
-from Vector_setup.user.db import get_db, FirstLoginToken
+from Vector_setup.user.db import get_db, FirstLoginToken, engine, DBUser
 from Vector_setup.user.auth_jwt import get_current_user
 from Vector_setup.services.email_service import send_first_login_email  # your email helper
 import os
 
-FRONTEND_BASE_URL = os.getenv("FRONTEND_ORIGIN")
+FRONTEND_BASE_URL = os.getenv("FRONTEND_ORIGIN", "https://lexiscope.duckdns.org")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -140,4 +141,43 @@ def login_tenant(
         data={"sub": user.email, "tenant_id": user.tenant_id},
         expires_delta=access_token_expires,
     )
-    return {"access_token": access_token, "token_type": "bearer"}    
+    return {"access_token": access_token, "token_type": "bearer"}   
+
+from pydantic import BaseModel
+class FirstLoginVerifyRequest(BaseModel):
+    token: str
+
+@router.post("/first-login/verify")
+def verify_first_login(payload: FirstLoginVerifyRequest):
+    token_value = payload.token
+
+    # 1. Find token record
+    with Session(engine) as session:
+        stmt = select(FirstLoginToken).where(FirstLoginToken.token == token_value)
+        token_row = session.exec(stmt).first()
+
+        if not token_row:
+            raise HTTPException(status_code=400, detail="Invalid or expired")
+
+        # 2. Check expiry
+        now = datetime.now(timezone.utc)
+        if token_row.expires_at.replace(tzinfo=timezone.utc) < now:
+            # optional: delete expired token
+            session.delete(token_row)
+            session.commit()
+            raise HTTPException(status_code=400, detail="Invalid or expired")
+
+        # 3. Load user
+        user = session.get(DBUser, token_row.user_id)
+        if not user:
+            raise HTTPException(status_code=400, detail="Invalid or expired")
+
+        # 4. Mark first login as complete
+        user.is_first_login = False
+        session.add(user)
+        # optional: delete token so it can't be reused
+        session.delete(token_row)
+        session.commit()
+
+        return {"status": "ok"}
+ 

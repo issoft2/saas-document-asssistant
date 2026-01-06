@@ -326,6 +326,9 @@ import { listConversations, getConversation, deleteConversation } from '../api'
 import { useQueryStream } from '../composables/useQueryStream'
 import MarkdownText from '../components/MarkdownText.vue'
 
+import { marked } from 'marked'
+
+const renderMarkdown = (text: string) => marked.parse(text || '')
 
 // ----- Streaming composable -----
 const {

@@ -155,7 +155,7 @@
 
                   <MarkdownText
                     v-if="msg.role === 'assistant'"
-                    :content="normalizeMarkdown(msg.text)"
+                    :content="msg.text"
                     class="mt-1 text-sm text-slate-100 prose prose-invert max-w-none"
                   />
 
@@ -358,9 +358,6 @@ const isSpeaking = ref(false)
 const voices = ref<SpeechSynthesisVoice[]>([])
 const selectedVoiceName = ref('')
 
-function normalizeMarkdown(raw: string): string {
-  return raw || ''
-}
 
 // ----- Voices -----
 function loadVoices() {

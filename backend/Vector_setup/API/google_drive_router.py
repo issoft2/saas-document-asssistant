@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from sqlmodel import Session
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, Response
 from urllib.parse import parse_qs, urlencode
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -18,6 +18,8 @@ import uuid
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
 from Vector_setup.API.ingest_routes import extract_text_from_upload
 from googleapiclient.errors import HttpError
+import requests
+
 
 
 
@@ -510,6 +512,55 @@ async def ingest_drive_file(
     )
 
     return {"status": "ok", "doc_id": doc_id}
+
+
+@router.post("/disconnect", status_code=status.HTTP_204_NO_CONTENT)
+def disconnect_google_drive(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_tenant_admin),
+) -> Response:
+    """
+    Disconnect the current tenant from Google Drive.
+
+    - Optionally revoke the refresh token at Google.
+    - Always delete the local TenantGoogleDriveConfig row.
+    """
+    tenant_id = current_user.tenant_id
+
+    cfg = (
+        db.query(TenantGoogleDriveConfig)
+        .filter(TenantGoogleDriveConfig.tenant_id == tenant_id)
+        .first()
+    )
+    if not cfg:
+        # Already disconnected; return 204 with no body
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # Optional: revoke token at Google
+    if cfg.refresh_token:
+        try:
+            creds = Credentials(
+                token=None,
+                refresh_token=cfg.refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=GOOGLE_CLIENT_ID,
+                client_secret=GOOGLE_CLIENT_SECRET,
+                scopes=["https://www.googleapis.com/auth/drive.readonly"],
+            )
+            requests.post(
+                "https://oauth2.googleapis.com/revoke",
+                params={"token": creds.refresh_token},
+                headers={"content-type": "application/x-www-form-urlencoded"},
+                timeout=5,
+            )
+        except Exception:
+            # Do not block disconnect on revoke failure
+            pass
+
+    db.delete(cfg)
+    db.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
         
 
            

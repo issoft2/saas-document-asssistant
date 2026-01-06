@@ -326,6 +326,13 @@
         >
           {{ googleDriveStatus === 'connected' ? 'Reconnect' : 'Connect Google Drive' }}
         </button>
+         <button
+           v-if="googleDriveStatus == 'connected'"
+            class="px-3 py-1 text-xs rounded bg-slate-200 text-slate-800"
+            @click="disconnectGoogleDrive"
+          >
+            Disconnect
+      </button>
       </div>
     </section>
 
@@ -496,6 +503,7 @@ import {
   getGoogleDriveStatus,
   listDriveFiles,
   ingestDriveFile,
+  disconnectGoogleDriveApi
 } from '../api'
 
 // ---- Types ----
@@ -742,6 +750,14 @@ async function loadGoogleDriveStatus() {
     console.error('Failed to load Google Drive status', e)
     googleDriveStatus.value = 'disconnected'
     googleDriveEmail.value = ''
+  }
+}
+
+async function disconnectGoogleDrive() {
+  try {
+    await disconnectGoogleDriveApi()
+  } finally {
+    await loadGoogleDriveStatus()
   }
 }
 

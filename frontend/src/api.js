@@ -171,3 +171,9 @@ export function ingestDriveFile(payload) {
     title: payload.title,
   })
 }
+
+
+// disconnect from Google drive
+export function disconnectGoogleDriveApi() {
+  return api.post('/google-drive/disconnect')
+}

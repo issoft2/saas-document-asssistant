@@ -506,6 +506,8 @@ async def llm_pipeline_stream(
         # Join exactly as emitted
         raw_answer = "".join(full_answer_parts).strip()
 
+        logger.info("RAW_ANSWER:\n%s", raw_answer)
+
         # 8) CRITIQUE
         critique_messages = create_critique_prompt(
             user_question=question,
@@ -515,9 +517,9 @@ async def llm_pipeline_stream(
 
         critique_resp = suggestion_llm_client.invoke(critique_messages)
         
-        critique = (getattr(critique_resp, "content", "") or "").strip().upper()
+        critique = (getattr(critique_resp, "content", "") or "")
         
-        if critique != "Ok":
+        if critique != "ok":
             raw_answer = (
                 "⚠️ Warning: The previous response may not fully align with the available documents.\n\n"
                 + raw_answer
@@ -527,7 +529,10 @@ async def llm_pipeline_stream(
         try:
             formatter_messages = create_formatter_prompt(raw_answer)
             formatted_resp = formatter_llm_client.invoke(formatter_messages)
-            formatted_answer = getattr(formatted_resp, "content", raw_answer).strip()
+            formatted_answer = getattr(formatted_resp, "content", raw_answer)
+            
+            logger.info("FORMATTED_ANSWER:\n%s", formatted_answer)
+
         except Exception:
             formatted_answer = raw_answer
 

@@ -174,7 +174,7 @@ def verify_first_login(payload: FirstLoginVerifyRequest):
         now = datetime.now(timezone.utc)
         expires_at = matched.expires_at.replace(tzinfo=timezone.utc)
         if expires_at < now:
-            matched.used_at = now  # optionally mark as used/invalid
+            matched.used_at = None  # optionally mark as used/invalid
             session.add(matched)
             session.commit()
             raise HTTPException(status_code=400, detail="Invalid or expired")
@@ -186,7 +186,7 @@ def verify_first_login(payload: FirstLoginVerifyRequest):
 
         # 4) Mark first login complete and token as used
         user.is_first_login = True
-        matched.used_at = now
+        matched.used_at = None
         session.add(user)
         session.add(matched)
         session.commit()
@@ -204,15 +204,18 @@ def set_first_login_password(payload: FirstLoginSetPasswordRequest):
     raw_token = payload.token
     new_password = payload.new_password
 
+    logger.info("Set password payloads:::: %s", payload.dict())
     print("Set passworf payload %s", payload.dict())
 
     if not new_password or len(new_password) < 8:
+        logger.info("set-password error: password too short")
         print("set-password error: password too short")
         raise HTTPException(status_code=400, detail="Password too short")
 
     with Session(engine) as session:
         stmt = select(FirstLoginToken).where(FirstLoginToken.used_at.is_(None))
         candidates = session.exec(stmt).all()
+        logger.info("set-password candidates count: %s", len(candidates))
         print("set-password candidates count: %s", len(candidates))
 
         matched = None
@@ -222,12 +225,15 @@ def set_first_login_password(payload: FirstLoginSetPasswordRequest):
                 break
 
         if not matched:
+            logger.info("set-password error: token not matched %s", raw_token)
             print("set-password error: token not matched %s", raw_token)
             raise HTTPException(status_code=400, detail="Invalid or expired")
+        
 
         now = datetime.now(timezone.utc)
         expires_at = matched.expires_at.replace(tzinfo=timezone.utc)
         if expires_at < now:
+            logger.info("set-password error: token expired %s", matched.id)
             print("set-password error: token expired %s", matched.id)
             matched.used_at = now
             session.add(matched)
@@ -236,6 +242,7 @@ def set_first_login_password(payload: FirstLoginSetPasswordRequest):
 
         user = session.get(DBUser, matched.user_id)
         if not user:
+            logger.info("set-password error: user not found %s", matched.user_id)
             print("set-password error: user not found %s", matched.user_id)
             raise HTTPException(status_code=400, detail="Invalid or expired")
 

@@ -724,21 +724,22 @@ async def llm_pipeline_stream(
         logger.info(f"RAW_ANSWER:\n {raw_answer}")
 
         # 8) CRITIQUE AS CORRECTOR, NOT JUST LABEL
-        critique_messages = create_critique_prompt(
-            user_question=question,
-            assistant_answer=raw_answer,
-            context_text="\n\n".join(context_chunks)[:2000],
-        )
-        critique_resp = suggestion_llm_client.invoke(critique_messages)
-        critique = (getattr(critique_resp, "content", "") or "").strip().upper()
+        # Commenting out temporary
+        # critique_messages = create_critique_prompt(
+        #     user_question=question,
+        #     assistant_answer=raw_answer,
+        #     context_text="\n\n".join(context_chunks)[:2000],
+        # )
+        # critique_resp = suggestion_llm_client.invoke(critique_messages)
+        # critique = (getattr(critique_resp, "content", "") or "").strip().upper()
 
-        if critique == "BAD":
-            # Option A: soften the answer
-            raw_answer = (
-                "My current knowledge do not fully support a confident answer to this question. "
-                "The previous answer may include assumptions or information not clearly present in the context. "
-                "Please provide more specific details or point me to the relevant context, period, or dataset."
-            )
+        # if critique == "BAD":
+        #     # Option A: soften the answer
+        #     raw_answer = (
+        #         "My current knowledge do not fully support a confident answer to this question. "
+        #         "The previous answer may include assumptions or information not clearly present in the context. "
+        #         "Please provide more specific details or point me to the relevant context, period, or dataset."
+        #     )
 
 
 

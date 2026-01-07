@@ -119,19 +119,23 @@ Conversation (most recent last):
 Latest user message:
 "{user_message}"
 
+Your task is ONLY to classify the intent of the latest message and optionally rewrite it. Do NOT answer the user's question.
+
 Decide the intent of the latest message:
 
 - If the user is clearly asking a new, specific question that does not simply ask to expand on the last answer,
   label it NEW_QUESTION.
 
-- If the user is giving a short confirmation or follow-up that is mainly asking to elaborate on the assistant's
-  previous answer (for example: "Yes", "I want more information", "Tell me more", "How did you arrive at your answer?",
-  "Can you break this down?", "I still need details", "following the information you have"),
+- If the user is giving a short confirmation or follow-up that is mainly asking to elaborate on the
+  assistant's previous answer (for example: "Yes", "I want more information", "Tell me more",
+  "How did you arrive at your answer?", "Can you break this down?", "I still need details",
+  "following the information you have"),
   label it FOLLOWUP_ELABORATE and rewrite it into a more explicit question ABOUT THE ASSISTANT'S LAST ANSWER
-  or the SAME DOCUMENT. The rewritten question should:
-  - Mention the main topic of the last answer,
-  - If the last answer included a formula or numeric result, ask to explain the calculation step by step,
+  or ABOUT THE SAME DOCUMENTS. The rewritten question should:
+  - Mention the main topic of the last answer (for example, a policy, a calculation, a forecast, or a procedure),
+  - If the last answer included a formula or numeric result, ask to explain or break down that calculation step by step,
   - Otherwise, ask to provide more detail, examples, implications, or a clearer breakdown of that answer.
+  - Never ask for new external data beyond what was already used in the last answer and retrieved context.
 
 - If the message is just small talk or courtesy (for example: "Thanks", "Thank you, it is working now",
   "Great, that helps", "Hello", "Hi", "Good morning", "Good afternoon", "Good evening"),
@@ -146,12 +150,18 @@ Decide the intent of the latest message:
 
 - If you really cannot tell, label it UNSURE.
 
+Important:
+- Do NOT perform any calculations, forecasts, or analysis yourself.
+- Do NOT invent or assume that data for missing years or documents exists.
+- Your output must be a JSON object only, with no extra commentary.
+
 Respond as pure JSON:
 {{
   "intent": "<one of: FOLLOWUP_ELABORATE | NEW_QUESTION | CHITCHAT | CAPABILITIES | UNSURE>",
   "rewritten_question": "<a clear, explicit question about the last answer, or empty string if not needed>"
 }}
 """.strip()
+
 
 
 FINANCE_KEYWORDS = [

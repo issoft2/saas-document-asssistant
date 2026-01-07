@@ -1,4 +1,3 @@
-<!-- src/components/MarkdownText.vue -->
 <template>
   <div :class="$attrs.class" v-html="rendered"></div>
 </template>
@@ -11,7 +10,11 @@ defineOptions({ inheritAttrs: false })
 
 const props = defineProps<{ content: string }>()
 
-const md = new MarkdownIt({ breaks: true })
+const md = new MarkdownIt({
+  html: false,
+  linkify: true,
+  breaks: false,      // important: let Markdown control line breaks
+})
 
 const rendered = computed(() => md.render(props.content || ''))
 </script>

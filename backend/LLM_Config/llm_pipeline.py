@@ -446,9 +446,21 @@ def infer_intent_and_rewrite(
         if isinstance(data, dict):
             llm_intent = (data.get("intent") or "UNSURE").strip().upper()
             rewritten_raw = (data.get("rewritten_question") or "").strip()
-            rewritten = rewritten_raw or None
+
+            # Only accept rewrites that look like real questions or instructions,
+            # not critiques of the assistant.
+            if rewritten_raw:
+                lowered = rewritten_raw.lower()
+                if lowered.startswith(("why was your answer", "your previous answer", "the assistant")):
+                    # Discard critique-style rewrites
+                    rewritten = None
+                else:
+                    rewritten = rewritten_raw
+            else:
+                rewritten = None
         else:
             raise ValueError("Intent classifier did not return a JSON object")
+
 
     except Exception as e:
         logger.warning(f"Intent parsing failed: {e}")
@@ -727,7 +739,6 @@ async def llm_pipeline_stream(
                 "The previous answer may include assumptions or information not clearly present in the context. "
                 "Please provide more specific details or point me to the relevant context, period, or dataset."
             )
-        # if critique == "OK": keep raw_answer as-is
 
 
 

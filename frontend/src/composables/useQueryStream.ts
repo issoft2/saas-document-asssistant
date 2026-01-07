@@ -27,7 +27,7 @@ export function useQueryStream() {
     const params = new URLSearchParams({
       question: payload.question,
       conversation_id: payload.conversation_id,
-      top_k: String(payload.top_k ?? 5),
+      top_k: String(payload.top_k ?? 10),
       collection_name: payload.collection_name ?? '',
     })
 

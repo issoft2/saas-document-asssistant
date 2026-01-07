@@ -91,12 +91,20 @@ a {
   font-weight: 600;
 }
 
-/* Optional: make headings not all-caps if Typography plugin adds it later */
-/*
-.prose h1,
-.prose h2,
-.prose h3,
-.prose h4 {
-  text-transform: none;
+
+/* Nested bullets: change marker for clarity */
+.prose ul ul {
+  list-style-type: circle;
 }
-*/
+
+.prose ol ol {
+  list-style-type: lower-alpha;
+}
+
+/* Slightly tighter li spacing than paragraphs */
+.prose li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+

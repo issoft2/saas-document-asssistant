@@ -764,7 +764,7 @@ async def llm_pipeline_stream(
         critique_messages = create_critique_prompt(
             user_question=question,
             assistant_answer=raw_answer,
-            context_text="\n\n".join(context_chunks)[:2000],
+            context_text="\n\n".join(context_chunks)[:10000],
         )
         critique_resp = suggestion_llm_client.invoke(critique_messages)
         critique = (getattr(critique_resp, "content", "") or "").strip().upper()
@@ -774,7 +774,7 @@ async def llm_pipeline_stream(
             refinement_messages = create_refinement_prompt(
                 user_question=question,
                 assistant_answer=raw_answer,
-                context_text="\n\n".join(context_chunks)[:2000],
+                context_text="\n\n".join(context_chunks)[:10000],
             )
             refine_resp = llm_client.invoke(refinement_messages)
             refined = (getattr(refine_resp, "content", "") or "").strip()

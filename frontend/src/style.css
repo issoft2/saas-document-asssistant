@@ -9,22 +9,22 @@
 }
 
 /* Let Tailwind handle layout and colors */
-body {
+/* body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
 }
 
 /* App should fill viewport; chat handles its own padding/layout */
-#app {
+/* #app {
   width: 100%;
   min-height: 100vh;
-}
+} */
 
 /* Links (use Tailwind text color utilities in components if needed) */
-a {
+/* a {
   text-decoration: inherit;
-}
+}  */
 
 /* --- Markdown / prose tuning for chat answers --- */
 

@@ -854,9 +854,11 @@ async def llm_pipeline_stream(
             if refined:
                 raw_answer = refined
 
-        # 9) FORMAT AND STREAM
+            # 9) FORMAT AND STREAM (buffered)
         try:
             formatter_messages = create_formatter_prompt(raw_answer)
+
+            buffer = ""
             formatted_parts: list[str] = []
 
             async for chunk in formatter_llm_streaming.astream(formatter_messages):
@@ -866,10 +868,23 @@ async def llm_pipeline_stream(
                         text = chunk.generations[0].text or ""
                     except Exception:
                         text = ""
-                if text:
-                    formatted_parts.append(text)
-                    # stream formatted Markdown to the client
-                    yield text
+                if not text:
+                    continue
+
+                # accumulate raw formatter text
+                buffer += text
+
+                # flush buffer when it reaches a reasonable size
+                # or when it contains a newline (good for Markdown)
+                if "\n" in buffer or len(buffer) > 256:
+                    yield f"event: token\ndata: {buffer}\n\n"
+                    formatted_parts.append(buffer)
+                    buffer = ""
+
+            # flush any remaining text
+            if buffer:
+                yield f"event: token\ndata: {buffer}\n\n"
+                formatted_parts.append(buffer)
 
             formatted_answer = "".join(formatted_parts).strip()
             logger.info(f"FORMATTED_ANSWER:\n {formatted_answer}")
@@ -878,9 +893,10 @@ async def llm_pipeline_stream(
             logger.warning(f"Formatter failed, returning raw answer: {e}")
             formatted_answer = raw_answer
             # fallback: send full raw answer once
-            yield formatted_answer
+            yield f"event: token\ndata: {formatted_answer}\n\n"
 
         _store(formatted_answer, unique_sources)
+
 
 
     except Exception as e:

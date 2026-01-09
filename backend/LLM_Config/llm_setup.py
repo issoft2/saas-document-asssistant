@@ -46,6 +46,6 @@ formatter_llm_streaming = ChatOpenAI(
     model="gpt-4o-mini",
     temperature=0.0,
     max_tokens=4096,
-    streaming=True,
+    streaming=False,
 
 )

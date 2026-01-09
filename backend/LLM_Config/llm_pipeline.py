@@ -8,7 +8,7 @@ from LLM_Config.llm_setup import (
     llm_client,
     suggestion_llm_client,
     llm_client_main,
-    formatter_llm_streaming,
+    formatter_llm_client,
 )
 from LLM_Config.system_user_prompt import (
     create_context,
@@ -854,40 +854,16 @@ async def llm_pipeline_stream(
             if refined:
                 raw_answer = refined
 
-            # 9) FORMAT AND STREAM (buffered)
+                # 9) FORMAT ONCE (non-streaming)
         try:
             formatter_messages = create_formatter_prompt(raw_answer)
-
-            buffer = ""
-            formatted_parts: list[str] = []
-
-            async for chunk in formatter_llm_streaming.astream(formatter_messages):
-                text = getattr(chunk, "content", "") or ""
-                if not text:
-                    try:
-                        text = chunk.generations[0].text or ""
-                    except Exception:
-                        text = ""
-                if not text:
-                    continue
-
-                # accumulate raw formatter text
-                buffer += text
-
-                # flush buffer when it reaches a reasonable size
-                # or when it contains a newline (good for Markdown)
-                if "\n" in buffer or len(buffer) > 256:
-                    yield f"event: token\ndata: {buffer}\n\n"
-                    formatted_parts.append(buffer)
-                    buffer = ""
-
-            # flush any remaining text
-            if buffer:
-                yield f"event: token\ndata: {buffer}\n\n"
-                formatted_parts.append(buffer)
-
-            formatted_answer = "".join(formatted_parts).strip()
+            formatted_resp = formatter_llm_client.invoke(formatter_messages)
+            formatted_answer = (getattr(formatted_resp, "content", "") or raw_answer).strip()
             logger.info(f"FORMATTED_ANSWER:\n {formatted_answer}")
+        except Exception as e:
+            logger.warning(f"Formatter failed, returning raw answer: {e}")
+            formatted_answer = raw_answer
+
 
         except Exception as e:
             logger.warning(f"Formatter failed, returning raw answer: {e}")

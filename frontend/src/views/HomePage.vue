@@ -173,7 +173,7 @@
                     class="relative rounded-lg border border-indigo-500/40 bg-slate-900 overflow-hidden shadow-lg"
                   >
                     <img
-                      src="public/assets/bar.png"
+                      src="/assets/bar.png"
                       alt="Revenue and expenses comparison charts Q1 2023 vs Q1 2024"
                       class="w-full h-32 md:h-36 object-cover"
                     />
@@ -194,7 +194,7 @@
                     class="relative rounded-lg border border-indigo-500/40 bg-slate-900 overflow-hidden shadow-lg"
                   >
                     <img
-                      src="public/assets/line.png"
+                      src="/assets/line.png"
                       alt="Financial performance line chart Q1 2023 vs Q1 2024"
                       class="w-full h-32 md:h-36 object-cover"
                     />

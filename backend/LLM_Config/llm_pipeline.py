@@ -874,7 +874,7 @@ async def llm_pipeline_stream(
         _store(formatted_answer, unique_sources)
         yield formatted_answer
        
-                # --- Optional chart spec for finance / visual/chart-like questions ---
+        # --- Optional chart spec for finance / visual/chart-like questions ---
         try:
             lower_q = (question or "").lower()
             chart_intent_trigger = any(
@@ -903,26 +903,46 @@ async def llm_pipeline_stream(
                 chart_spec = None
                 try:
                     chart_spec = json.loads(raw_chart)
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"CHART_DEBUG JSON parse failed: {e}")
+                    # try to salvage JSON from noisy output
                     start = raw_chart.find("{")
                     end = raw_chart.rfind("}")
                     if start != -1 and end != -1 and end > start:
                         candidate = raw_chart[start : end + 1]
                         try:
                             chart_spec = json.loads(candidate)
-                        except Exception:
+                        except Exception as e2:
+                            logger.warning(f"CHART_DEBUG salvage parse failed: {e2}")
                             chart_spec = None
 
+                # normalize keys and validate
                 if isinstance(chart_spec, dict):
-                    if result_holder is not None:
-                        result_holder["chart_spec"] = chart_spec
-                        logger.info(
-                            f"CHART_DEBUG set chart_spec on result_holder: {chart_spec}"
+                    # fix x-label -> x_label
+                    if "x-label" in chart_spec and "x_field" in chart_spec:
+                        chart_spec["x_label"] = chart_spec.pop("x-label")
+
+                    required_keys = {
+                        "chart_type",
+                        "title",
+                        "x_field",
+                        "x_label",
+                        "y_fields",
+                        "y_label",
+                        "data",
+                    }
+                    if required_keys.issubset(chart_spec.keys()):
+                        if result_holder is not None:
+                            result_holder["chart_spec"] = chart_spec
+                            logger.info(
+                                f"CHART_DEBUG set chart_spec on result_holder: {chart_spec}"
+                            )
+                    else:
+                        logger.warning(
+                            f"CHART_DEBUG chart_spec missing required keys: {chart_spec.keys()}"
                         )
                 else:
                     logger.warning("CHART_DEBUG chart_spec is not a dict, skipping")
-            else:
-                logger.info("CHART_DEBUG condition not met, skipping chart_spec")
         except Exception as e:
             logger.warning(f"Chart spec generation failed: {e}")
 

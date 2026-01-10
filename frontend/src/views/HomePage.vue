@@ -97,8 +97,8 @@
               <div>
                 <p class="font-semibold text-slate-100">Data & financial analysis</p>
                 <p class="text-slate-400">
-                  Managers can ask for quarterly revenue, expenses, and net‑profit tables and see
-                  them as clear charts built from your own reports.
+                  Managers ask for quarterly revenue, expenses, and net‑profit tables and see them
+                  as clear charts built directly from your reports.
                 </p>
               </div>
             </div>
@@ -166,7 +166,7 @@
                   Sample visual output
                 </p>
                 <div class="space-y-2">
-                  <!-- Replace src with actual static paths in your app -->
+                  <!-- bar chart sample -->
                   <div
                     class="relative rounded-lg border border-slate-800 bg-slate-900/70 overflow-hidden"
                   >
@@ -184,6 +184,7 @@
                     </div>
                   </div>
 
+                  <!-- line chart sample -->
                   <div
                     class="relative rounded-lg border border-slate-800 bg-slate-900/70 overflow-hidden"
                   >
@@ -206,7 +207,7 @@
               <div
                 class="rounded-lg border border-dashed border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-400"
               >
-                HR and managers see the same assistant: policies for employees, and data‑driven
+                HR and managers use the same assistant: policies for employees, and data‑driven
                 financial views for leadership — all grounded in your internal documents.
               </div>
             </div>

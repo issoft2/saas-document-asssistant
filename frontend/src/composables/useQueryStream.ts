@@ -20,7 +20,7 @@ export function useQueryStream() {
   const suggestions = ref<string[]>([])
   const isStreaming = ref(false)
   const abortController = ref<AbortController | null>(null)
-  const chartSpec = ref<ChartSpec | null>(null) // 2) inside composable
+  const chartSpec = ref<ChartSpec[] | null>(null) // 2) inside composable
 
 
   // simple typewriter over a final string
@@ -143,10 +143,11 @@ export function useQueryStream() {
            
           } else if (eventType === 'chart') {
              try{
-               const parsed = JSON.parse(data) as { charts: ChartSpec[]} 
+               const payload = JSON.parse(data) as { charts: ChartSpec[]} 
 
-               chartSpec.value = parsed.charts ?? []
-             }catch {
+               chartSpec.value = payload.charts ?? []
+             }catch (e){
+              console.error('Failed to parse chart payload', e, data)
               chartSpec.value = null
              }
              

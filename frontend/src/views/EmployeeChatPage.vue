@@ -192,8 +192,9 @@
                       <div v-if="msg.chart_specs?.length" class="mt-4 space-y-4">
                         <ChartRenderer
                         v-for="(spec, i) in msg.chart_specs"
-                        :key="1"
+                        :key="i"
                         :spec="spec"
+                        class="w-full"
                         />
                       </div>
 
@@ -581,11 +582,13 @@ lastMsg.text = val
 }
 })
 
-watch(chartSpec, (spec) => {
-  if (!spec) return
-  const lastMsg = messages.value[messages.value.length - 1]
-  if (lastMsg && lastMsg.role === 'assistant') {
-    lastMsg.chart_spec = spec
+watch(chartSpec, (newVal) => {
+  if (!newVal || !newVal.length) return
+
+  const lastMsg = [...messages.value].reverse().find(m => m.role === 'assistant')
+  
+  if (lastMsg) {
+    lastMsg.chart_specs = newVal
   }
 })
 

@@ -14,7 +14,7 @@
               Company Guideline Assistant
             </span>
             <span class="text-[11px] text-slate-400">
-              Your private AI for HR, policies, financial reports, and internal documents
+              A private AI layer over your policies, knowledge, and financial data
             </span>
           </div>
         </div>
@@ -40,20 +40,20 @@
           <p
             class="inline-flex items-center gap-2 rounded-full border border-indigo-400/40 bg-indigo-500/10 px-3 py-1 text-[11px] font-medium text-indigo-100"
           >
-            Multi‑tenant AI assistant for modern organisations
+            Multi‑tenant AI copilot for modern organisations
             <span class="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
-            <span class="text-[10px] text-emerald-200/80">Data stays in your company</span>
+            <span class="text-[10px] text-emerald-200/80">Your content. Your rules. Your data.</span>
           </p>
 
           <h1 class="text-3xl md:text-4xl font-semibold tracking-tight text-slate-50">
-            Turn your company documents and data into a private, searchable AI helpdesk.
+            Turn scattered company documents and data into one searchable, conversational brain.
           </h1>
 
           <p class="text-sm md:text-[15px] text-slate-300 leading-relaxed max-w-xl">
-            Company Guideline Assistant gives every tenant its own secure AI that answers employee
-            questions using HR policies, handbooks, procedures, and financial reports — summarising
-            tables, comparing periods, and generating charts without mixing data between clients or
-            inventing new rules.
+            Upload policies, playbooks, reports, and spreadsheets. Company Guideline Assistant
+            becomes a private AI helpdesk that answers questions, explains procedures, and turns
+            financial tables into clear comparisons and charts — without leaking data or inventing
+            new rules.
           </p>
 
           <!-- Primary actions -->
@@ -62,7 +62,7 @@
               to="/login"
               class="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-indigo-500 text-xs font-medium text-white shadow-sm hover:bg-indigo-400 transition"
             >
-              Get started – Sign in
+              Try it with your documents
             </RouterLink>
             <a
               href="#how-it-works"
@@ -79,7 +79,8 @@
               <div>
                 <p class="font-semibold text-slate-100">Multi‑tenant by design</p>
                 <p class="text-slate-400">
-                  Each company has its own isolated workspace, indexes, and conversations.
+                  Serve multiple clients or business units from one stack while keeping workspaces,
+                  indexes, and chat history fully isolated.
                 </p>
               </div>
             </div>
@@ -88,7 +89,8 @@
               <div>
                 <p class="font-semibold text-slate-100">Role‑aware answers</p>
                 <p class="text-slate-400">
-                  Tailor access for vendors, HR, executives, managers, and employees.
+                  Shape responses for HR, managers, execs, vendors, or employees based on their
+                  access and responsibilities.
                 </p>
               </div>
             </div>
@@ -97,8 +99,8 @@
               <div>
                 <p class="font-semibold text-slate-100">Data & financial analysis</p>
                 <p class="text-slate-400">
-                  Managers can ask for quarterly revenue, expenses, and net‑profit tables and see
-                  them as clear charts built from your own reports.
+                  Ask for quarterly revenue, expenses, and net‑profit tables and get side‑by‑side
+                  comparisons with charts straight from your reports.
                 </p>
               </div>
             </div>
@@ -107,33 +109,35 @@
           <!-- Example questions strip -->
           <div class="pt-3">
             <p class="text-[11px] font-semibold text-slate-400 mb-1">
-              Ask questions like:
+              Ask in plain language:
             </p>
             <div class="flex flex-wrap gap-2 text-[11px]">
               <span
                 class="px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-300"
               >
-                “What is our travel reimbursement policy?”
+                “What is our travel reimbursement policy and who signs off?”
               </span>
               <span
                 class="px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-300"
               >
-                “Summarise the 2022–2024 financial performance by quarter with charts.”
+                “Compare Q1 2023 vs Q1 2024 financial performance with charts.”
               </span>
               <span
                 class="px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-300"
               >
-                “Who approves remote work and how many days are allowed?”
+                “Summarise the onboarding handbook for new engineers.”
               </span>
             </div>
           </div>
         </div>
 
-        <!-- Right: preview card with chart sample + vivid images -->
-        <div class="relative">
+        <!-- Right: stacked previews – finance + policy -->
+        <div class="relative space-y-4">
           <div
             class="absolute -inset-6 bg-indigo-500/10 blur-3xl rounded-3xl pointer-events-none"
           ></div>
+
+          <!-- Finance / charts card -->
           <div
             class="relative rounded-2xl border border-slate-800 bg-slate-950/80 shadow-xl shadow-slate-950/60 overflow-hidden"
           >
@@ -149,26 +153,26 @@
             </div>
 
             <div class="p-4 space-y-3 text-[11px] text-slate-200">
-              <!-- Textual chart sample (restored) -->
+              <!-- Chart sample explanation -->
               <div class="space-y-1.5">
                 <p class="font-medium text-slate-100">
                   “Generate financial performance tables and charts for Q1 2023 and 2024.”
                 </p>
                 <p class="text-slate-400 leading-relaxed">
-                  The assistant builds quarterly tables for revenue, total expenses, and net
-                  profit, then renders comparison charts so managers can quickly see how Q1 2024
-                  performed against Q1 2023.
+                  The assistant reads your quarterly statements, builds revenue, total‑expense, and
+                  net‑profit tables, then renders comparison charts so leaders see trends in seconds
+                  instead of digging through spreadsheets.
                 </p>
               </div>
 
-              <!-- Image samples, made vivid -->
+              <!-- Image samples -->
               <div class="space-y-2">
                 <p class="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">
-                  See what managers get
+                  What your managers see
                 </p>
 
                 <div class="grid grid-cols-1 gap-3">
-                  <!-- Top bar chart sample -->
+                  <!-- Bar chart sample -->
                   <div
                     class="relative rounded-lg border border-indigo-500/40 bg-slate-900 overflow-hidden shadow-lg"
                   >
@@ -184,12 +188,12 @@
                         Revenue & expenses comparison · Q1 2023 vs Q1 2024
                       </p>
                       <p class="text-slate-400">
-                        Side‑by‑side bars highlight quarter‑over‑quarter changes.
+                        Grouped bars call out shifts in spend and growth at a glance.
                       </p>
                     </div>
                   </div>
 
-                  <!-- Bottom line chart sample -->
+                  <!-- Line chart sample -->
                   <div
                     class="relative rounded-lg border border-indigo-500/40 bg-slate-900 overflow-hidden shadow-lg"
                   >
@@ -205,7 +209,7 @@
                         Financial performance line chart
                       </p>
                       <p class="text-slate-400">
-                        Track revenue, total expenses, and net profit across months.
+                        Follow revenue, expenses, and net profit month by month.
                       </p>
                     </div>
                   </div>
@@ -215,16 +219,15 @@
               <div
                 class="rounded-lg border border-dashed border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-400"
               >
-                HR and managers use the same assistant: policies for employees, and data‑driven
-                financial views for leadership — all grounded in your internal documents.
+                The same engine powers HR answers and financial insights — one assistant, grounded
+                entirely in your internal content.
               </div>
             </div>
           </div>
+
+          <!-- Policy / knowledge card -->
           <div
-            class="absolute -inset-6 bg-indigo-500/10 blur-3xl rounded-3xl pointer-events-none"
-          ></div>
-          <div
-            class="relative rounded-2xl border border-slate-800 bg-slate-950/80 shadow-xl shadow-slate-950/60 overflow-hidden"
+            class="relative rounded-2xl border border-slate-800 bg-slate-950/90 shadow-lg shadow-slate-950/50 overflow-hidden"
           >
             <div
               class="border-b border-slate-800 px-4 py-2.5 flex items-center justify-between"
@@ -237,18 +240,19 @@
                 <p class="font-medium text-slate-100">
                   “What’s our remote work allowance?”
                 </p>
-                <p class="text-slate-400">
-                  “According to <span class='font-medium'>Trio‑Corp Remote Work Policy</span>,
+                <p class="text-slate-400 leading-relaxed">
+                  “According to your latest <span class='font-medium'>Remote Work Policy</span>,
                   full‑time employees can work remotely up to 3 days per week, subject to manager
-                  approval and role eligibility…”
+                  approval and role eligibility. Security and equipment requirements are listed in
+                  section 4.2…”
                 </p>
               </div>
               <div
-                class="rounded-lg border border-dashed border-slate-800 bg-slate-900/60 px-3 py-2 flex items-center justify-between"
+                class="rounded-lg border border-dashed border-slate-800 bg-slate-900/60 px-3 py-2 flex items-center"
               >
                 <span class="text-slate-400">
-                  HR and policy owners update documents from the admin panel — answers stay in sync
-                  without any retraining.
+                  Update a PDF once in the admin panel and every answer reflects the new version —
+                  no retraining or redeploys.
                 </span>
               </div>
             </div>
@@ -262,38 +266,37 @@
           <div class="flex items-center justify-between gap-2">
             <h2 class="text-sm font-semibold text-slate-100">How it works</h2>
             <p class="text-[11px] text-slate-400">
-              Designed for consultancies, multi‑brand groups, and internal HR and finance teams.
+              Built for consultancies, multi‑brand groups, and internal enablement teams who need AI
+              that respects tenant boundaries.
             </p>
           </div>
 
           <div class="grid md:grid-cols-3 gap-6 text-sm text-slate-300">
             <div class="space-y-2">
               <p class="text-xs font-semibold text-indigo-300 uppercase tracking-wide">
-                1. Onboard your company or clients
+                1. Onboard tenants in minutes
               </p>
               <p>
-                Vendor and tenant admins provision companies, configure collections, and invite HR,
-                Legal, finance, and policy owners — all from a simple web UI.
+                Vendor and tenant admins create workspaces, configure collections, and invite HR,
+                finance, Legal, and content owners from a simple web UI.
               </p>
             </div>
             <div class="space-y-2">
               <p class="text-xs font-semibold text-indigo-300 uppercase tracking-wide">
-                2. Connect and upload documents
+                2. Connect and upload knowledge
               </p>
               <p>
-                Ingest handbooks, HR policies, compliance docs, procedures, and financial reports
-                into secure, tenant‑scoped storage. Each tenant’s embeddings and chat history are
-                isolated.
+                Ingest handbooks, SOPs, contracts, wikis, and financial reports into secure,
+                tenant‑scoped storage. Embeddings and chat history never cross tenants.
               </p>
             </div>
             <div class="space-y-2">
               <p class="text-xs font-semibold text-indigo-300 uppercase tracking-wide">
-                3. Teams ask questions in chat
+                3. Ask questions, get grounded answers
               </p>
               <p>
-                Employees ask HR and policy questions, while managers request financial summaries,
-                tables, and charts — all with grounded answers and citations to your documents, not
-                generic AI responses.
+                Employees get clear, cited answers to policy questions. Managers get live‑from‑your‑
+                data tables and charts — not generic internet AI.
               </p>
             </div>
           </div>
@@ -307,9 +310,8 @@
         class="max-w-6xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-[11px] text-slate-400"
       >
         <p class="max-w-xl">
-          Built for HR, People Ops, Legal, finance, and policy owners who need a secure,
-          multi‑tenant AI assistant — instead of another inbox full of “Where is the policy?”
-          and “Can you send me that report?” questions.
+          Stop forwarding PDFs and answering the same questions twice. Give every tenant a secure AI
+          assistant that knows their policies and numbers — and can explain both.
         </p>
         <RouterLink
           to="/login"

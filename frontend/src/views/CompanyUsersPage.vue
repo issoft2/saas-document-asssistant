@@ -25,15 +25,17 @@
 
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-xs">
-          <thead class="bg-slate-50">
-            <tr>
-              <th class="px-3 py-2 text-left font-semibold text-slate-600">Name</th>
-              <th class="px-3 py-2 text-left font-semibold text-slate-600">Email</th>
-              <th class="px-3 py-2 text-left font-semibold text-slate-600">Role</th>
-              <th class="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
-              <th class="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
-            </tr>
-          </thead>
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-3 py-2 text-left font-semibold text-slate-600">Name</th>
+            <th class="px-3 py-2 text-left font-semibold text-slate-600">Email</th>
+            <th class="px-3 py-2 text-left font-semibold text-slate-600">Role</th>
+            <th class="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
+            <th class="px-3 py-2 text-left font-semibold text-slate-600">Online</th>
+            <th class="px-3 py-2 text-left font-semibold text-slate-600">Last seen</th>
+            <th class="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
+          </tr>
+        </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="user in users" :key="user.id">
               <td class="px-3 py-2">
@@ -44,9 +46,11 @@
                   Tenant: {{ user.tenant_id }}
                 </div>
               </td>
+
               <td class="px-3 py-2 text-slate-700">
                 {{ user.email }}
               </td>
+
               <td class="px-3 py-2">
                 <span
                   class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
@@ -55,6 +59,7 @@
                   {{ user.role || 'N/A' }}
                 </span>
               </td>
+
               <td class="px-3 py-2">
                 <span
                   class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
@@ -63,6 +68,32 @@
                   {{ user.is_active ? 'Active' : 'Inactive' }}
                 </span>
               </td>
+
+              <!-- Online badge -->
+              <td class="px-3 py-2">
+                <div class="inline-flex items-center gap-1 text-[11px]">
+                  <span
+                    class="inline-block w-2 h-2 rounded-full"
+                    :class="user.is_online ? 'bg-emerald-500' : 'bg-slate-300'"
+                  ></span>
+                  <span
+                    :class="user.is_online ? 'text-emerald-700' : 'text-slate-500'"
+                  >
+                    {{ user.is_online ? 'Online' : 'Offline' }}
+                  </span>
+                </div>
+              </td>
+
+              <!-- Last seen -->
+              <td class="px-3 py-2 text-[11px] text-slate-500">
+                <span v-if="user.last_seen_at">
+                  {{ formatLastSeen(user.last_seen_at) }}
+                </span>
+                <span v-else>
+                  —
+                </span>
+              </td>
+
               <td class="px-3 py-2 text-right">
                 <div class="inline-flex items-center gap-2">
                   <button
@@ -85,11 +116,12 @@
             </tr>
 
             <tr v-if="!loading && !users.length">
-              <td colspan="5" class="px-3 py-6 text-center text-xs text-slate-400">
+              <td colspan="7" class="px-3 py-6 text-center text-xs text-slate-400">
                 No users found.
               </td>
             </tr>
           </tbody>
+
         </table>
       </div>
 
@@ -284,6 +316,22 @@ async function onToggleActive(user) {
     error.value = e.response?.data?.detail || 'Failed to update user status.'
   }
 }
+
+function formatLastSeen(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+
+  if (diffMin < 1) return 'Just now'
+  if (diffMin < 60) return `${diffMin} min ago`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return `${diffH} h ago`
+
+  return d.toLocaleString() // or toLocaleDateString()
+}
+
 
 onMounted(() => {
     console.log('CompanyUsersPage script loaded')

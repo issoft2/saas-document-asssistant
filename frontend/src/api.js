@@ -111,7 +111,7 @@ export function signup({email, password, tenantId, first_name, last_name, date_o
     })
 }
 
-export function apiLogin({ email, password }) {
+export function login({ email, password }) {
     const data = new URLSearchParams()
     data.append('username', email)
     data.append('password', password)

@@ -111,7 +111,7 @@ export function signup({email, password, tenantId, first_name, last_name, date_o
     })
 }
 
-export function login({ email, password }) {
+export function apiLogin({ email, password }) {
     const data = new URLSearchParams()
     data.append('username', email)
     data.append('password', password)
@@ -123,6 +123,10 @@ export function login({ email, password }) {
 
 export function apiHeartbeat() {
   return api.post('/users/heartbeat')
+}
+
+export function apiLogout() {
+  return api.post('/logout')
 }
 
 

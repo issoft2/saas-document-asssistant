@@ -55,6 +55,16 @@ NUMERIC AND ANALYTICAL BEHAVIOR
 - When sufficient data exists, perform calculations instead of saying data is missing. If only part of the required data is visible, explain which portion you can calculate and which portion you cannot.
 - Use plain-text formulas only (no LaTeX or special symbols).
 
+You may receive a flag `chart_only`:
+- if chart_only is true:
+   - Focus on producing clean tables and numbers that the chart generator can use.
+   - Keep prose minimal: at most 1-2 short sentences of context.
+   - Do NOT write long multi-paragraph explanations or bullet lists.
+   
+If chart_only is false:
+  - Provide both a clear written explanation and any useful tables.   
+
+
 When calculating:
 - State the formula once in words.
 - Show ONE worked example with clear inputs and final result.
@@ -262,6 +272,7 @@ def create_context(
     intent: str = "GENERAL",
     domain: str = "GENERAL",
     last_answer: Optional[str] = None,
+    chart_only: bool = False,
 ):
     # 1) Build context text (neutral, no Markdown headings)
     context_lines: list[str] = []
@@ -286,6 +297,20 @@ def create_context(
         "Answer the question using ONLY the information in the provided context. "
         "Do not introduce facts, assumptions, or data that are not supported by the context."
     )
+
+    # --- NEW: chart_only mode ---
+    if chart_only:
+        extra_instructions.append(
+            "The user has requested charts only (chart_only = true). "
+            "Focus on producing clear, well-structured numeric tables that a chart generator can use. "
+            "Keep prose minimal: at most 1–2 short sentences of context. "
+            "Do NOT write long multi-paragraph explanations or large bullet lists."
+        )
+    else:
+        extra_instructions.append(
+            "The user has not requested charts only (chart_only = false). "
+            "Provide a clear written explanation plus any tables that are helpful."
+        )
 
     # Numeric reasoning
     if domain == "FINANCE" or intent == "NUMERIC_ANALYSIS":
@@ -436,6 +461,13 @@ General rules:
   ]
 }
 
+Detail behavior (chart_only vs normal):
+ - You may be told that the user wants "charts only" (chart_only = true) or a normal answer (chart_only = false).
+ - This flag DOES NOT chant the JSON format you return; you always return an array of chart specs.
+ - When chart_only = true, prefer charts that fully express the answer visually (e.g. include all keys. metrics needed to 
+ understand the result).
+ - When chart_only = false, you may choose fewer or simpler charts if a single visualization is sufficient.
+
 Specific behavior:
 - For simple questions, return a single-element array: [ { ...one chart... } ].
 - For richer questions (e.g. comparing multiple years or periods), you MAY return multiple charts in the array (e.g. one per year and one comparison chart), but keep the total number of charts small (max 3).
@@ -549,13 +581,20 @@ Example output format:
     return [system_message, user_message]
 
 
-def create_chart_spec_prompt(user_question: str, markdown_answer: str) -> list[dict]:
+def create_chart_spec_prompt(
+    user_question: str,
+    markdown_answer: str,
+    chart_only: bool = False
+    ) -> list[dict]:
     user_content = f"""
 User question:
 {user_question}
 
 Assistant Markdown answer (may contain tables or numeric data):
 {markdown_answer}
+
+detail_flag:
+chart_only = {"true" if chart_only else "false"}
 
 Use ONLY the information in the answer.
 Return a SINGLE JSON value: a JSON array of chart specifications.

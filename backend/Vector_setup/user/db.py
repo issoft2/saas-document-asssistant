@@ -22,6 +22,7 @@ class DBUser(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     is_first_login: bool = Field(default=True)
+    # last_login_at: Optional[datetime] = None
     
     __table_args__ = (
         UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),

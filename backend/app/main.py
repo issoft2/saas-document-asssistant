@@ -129,3 +129,38 @@ def add_to_user_schema() -> None:
                 text("ALTER TABLE users ADD COLUMN is_first_login BOOLEAN;")
             )
             conn.commit()
+            
+@app.on_event("startup")
+def add_on_line_user_schema() -> None:
+    with engine.connect() as conn:
+        res = conn.execute(text("PRAGMA table_info(users);"))
+        cols = [row[1] for row in res.fetchall()]
+        if "is_online" not in cols:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN is_online BOOLEAN;")
+            )
+            conn.commit()            
+
+
+@app.on_event("startup")
+def add_last_login_at_user_schema() -> None:
+    with engine.connect() as conn:
+        res = conn.execute(text("PRAGMA table_info(users);"))
+        cols = [row[1] for row in res.fetchall()]
+        if "last_login_at" not in cols:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN last_login_at TEXT;")
+            )
+            conn.commit()   
+            
+            
+@app.on_event("startup")
+def add_last_seen_at_user_schema() -> None:
+    with engine.connect() as conn:
+        res = conn.execute(text("PRAGMA table_info(users);"))
+        cols = [row[1] for row in res.fetchall()]
+        if "last_seen_at" not in cols:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN last_seen_at TEXT;")
+            )
+            conn.commit()             

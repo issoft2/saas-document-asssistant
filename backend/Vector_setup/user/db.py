@@ -1,5 +1,6 @@
 # db.py
 from sqlmodel import SQLModel, Field, create_engine, Session, UniqueConstraint
+from typing import Optional
 import os
 from datetime import datetime
 
@@ -23,6 +24,9 @@ class DBUser(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     is_first_login: bool = Field(default=True)
     # last_login_at: Optional[datetime] = None
+    is_online: bool = Field(default=False, index=True)
+    last_login_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
     
     __table_args__ = (
         UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),

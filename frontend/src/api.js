@@ -117,8 +117,14 @@ export function login({ email, password }) {
     data.append('password', password)
     return api.post('/auth/login', data, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded'},
+        
     })
 }
+
+export function apiHeartbeat() {
+  return api.post('/users/heartbeat')
+}
+
 
 // Employee chat query
 export function queryPolicies({ question, topK = 5, conversationId}) {

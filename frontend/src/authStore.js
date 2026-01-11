@@ -7,7 +7,7 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api", 
 })
 
-import { setAuthToken, login as apiLogin, me as apiMe } from './api'
+import { setAuthToken, login as apiLogin, me as apiMe, apiLogout } from './api'
 
 export const authState = reactive({
   accessToken: localStorage.getItem('access_token') || null,
@@ -35,6 +35,9 @@ export async function login({ email, password }) {
   authState.user = user
   localStorage.setItem('user', JSON.stringify(user))
 
+  // 🔹 start heartbeat once user is in
+  startHeartbeat()
+
   if (['hr', 'executive', 'management', 'admin'].includes(user.role)) {
     await router.push('/admin/companies')
   } else {
@@ -43,6 +46,33 @@ export async function login({ email, password }) {
 
   return data
 }
+
+let heartbeatId
+
+export async function startHeartbeat() {
+  if (heartbeatId) return
+  heartbeatId = window.setInterval(() => {
+    apiHeartbeat().catch(() => {})
+  }, 30_000)
+}
+
+export async function logout() {
+  try {
+    await apiLogout()
+  } catch (e) {
+    // ignore
+  }
+  if (heartbeatId) {
+    clearInterval(heartbeatId)
+    heartbeatId = undefined
+  }
+  authState.accessToken = null
+  authState.user = null
+  localStorage.removeItem('user')
+  removeAuthToken()
+  await router.push('/login')
+}
+
 
 export function firstLoginVerify(payload) {
   return api.post('/auth/first-login/verify', payload)
@@ -80,7 +110,18 @@ export async function loginToTenant({ email, tenant_id }) {
   return data
 }
 
-export function logout() {
+export async function logout() {
+
+   try {
+    await apiLogout()
+  } catch (e) {
+    // ignore network/401 errors
+  }
+
+  if (heartbeatId) {
+    clearInterval(heartbeatId)
+    heartbeatId = undefined
+  }
   authState.accessToken = null
   authState.user = null
   setAuthToken(null)

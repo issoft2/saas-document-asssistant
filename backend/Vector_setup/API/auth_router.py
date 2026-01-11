@@ -143,6 +143,14 @@ def login_tenant(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not allowed to access this tenant",
         )
+    
+    now = datetime.utcnow()
+    user.last_login_at = now
+    user.last_seen_at = now
+    user.is_online = True
+    db.add(user)
+    db.commit()
+    db.refresh(user)  
         
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -248,3 +256,33 @@ def set_first_login_password(payload: FirstLoginSetPasswordRequest):
         session.commit()
 
         return {"status": "ok"}     
+    
+
+@router.post("/logout")
+def logout(
+    db: Session = Depends(get_db),
+    current_user: DBUser = Depends(get_current_user),
+):
+    # mark user as offline
+    current_user.is_online = False
+    current_user.last_seen_at = datetime.utcnow()
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
+    # frontend must also clear stored access token (localStorage/cookie)
+    return {"detail": "Logged out"}    
+
+
+@router.post("/users/heartbeat")
+def heartbeat(
+    current_user: DBUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.last_seen_at = datetime.utcnow()
+    current_user.is_online = True
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return {"detail": "ok"}

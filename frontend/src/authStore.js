@@ -7,7 +7,7 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api", 
 })
 
-import { setAuthToken, login as apiLogin, me as apiMe, apiLogout } from './api'
+import { setAuthToken, login as apiLogin, me as apiMe, apiLogout, apiHeartbeat } from './api'
 
 export const authState = reactive({
   accessToken: localStorage.getItem('access_token') || null,

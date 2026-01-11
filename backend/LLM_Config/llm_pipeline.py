@@ -283,8 +283,24 @@ def infer_intent_and_rewrite(
       - intent: one of "CHITCHAT", "CAPABILITIES", "FOLLOWUP_ELABORATE", "NEW_QUESTION", "UNSURE" or a rule-based type
       - rewritten: optional rewritten question (or None)
       - domain: "FINANCE" | "HR" | "TECH" | "POLICY" | "GENERAL"
+      - chart_only: bool
     """
     text = (user_message or "").lower().strip()
+    
+    chart_only = any(
+        p in text 
+        for p in [
+            "charts only",
+            "chart only",
+            "only charts",
+            "only charts",
+            "just the chart",
+            "just charts",
+            "no explanation",
+            "no text",
+            "skip the explanation",
+        ]
+    )
 
     # 1) Cheap chitchat short-circuit (greetings & pure appreciation)
     if any(
@@ -503,7 +519,7 @@ def infer_intent_and_rewrite(
     if intent in {"CHITCHAT", "CAPABILITIES"}:
         domain = "GENERAL"
 
-    return intent, rewritten, domain
+    return intent, rewritten, domain, chart_only
 
 
 def create_formatter_prompt(raw_answer: str) -> List[Dict[str, str]]:
@@ -866,7 +882,6 @@ async def llm_pipeline_stream(
             formatter_messages = create_formatter_prompt(raw_answer)
             formatted_resp = formatter_llm_client.invoke(formatter_messages)
             formatted_answer = getattr(formatted_resp, "content", raw_answer)
-            # logger.info(f"FORMATTED_ANSWER:\n {formatted_answer}")
         except Exception as e:
             logger.warning(f"Formatter failed, returning raw answer: {e}")
             formatted_answer = raw_answer

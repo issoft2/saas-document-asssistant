@@ -99,12 +99,13 @@ def login(
     if not user.is_active:  # or user.disabled, or user.status == "inactive"
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Your Account has been disabled!",
+            detail="Your Account has been deactivated, Please contact an administrator for help.!",
         )
         
     # Distinct tenant ids from rows
     tenant_ids = {row.tenant_id for row in tenant_rows}
     
+  
     # Phase 2 not needed only one tenant
     if len(tenant_ids) == 1:
         tenant_id = next(iter(tenant_ids))
@@ -120,6 +121,7 @@ def login(
             "requires_tenant_selection": False
         }
         
+
     # Phase needed: multiple tenants
     # Map to something frontend friendly (you likely have a company/Tenant table to join)
     return {

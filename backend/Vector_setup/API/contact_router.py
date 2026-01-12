@@ -22,13 +22,16 @@ def create_contact(payload: ContactIn):
         raise HTTPException(status_code=500, detail="Contact recipient not configured")
     
     subject = f"[CG Assistant] {payload.category.title()} - {payload.name}"
-    html_body = f"""
-        <p><strong>Name:</strong> {payload.name} </p>
-        <p><strong>Email:</strong> {payload.email} </p>
-        <p><strong>Category:</strong> {payload.category}</p>
-        <p><strong>Message:</strong></p>
-        <p>{payload.message.replace('\n', '<br/>')} </p>
-    """
+    
+    message_html = payload.message.replace("\n", "<br/>")
+
+    html_body = (
+            f"<p><strong>Name:</strong> {payload.name}</p>"
+            f"<p><strong>Email:</strong> {payload.email}</p>"
+            f"<p><strong>Category:</strong> {payload.category}</p>"
+            "<p><strong>Message:</strong></p>"
+            f"<p>{message_html}</p>"
+     )
     try:
         # send to you vendor
         _send_email(CONTACT_RECIPIENT, subject, html_body)

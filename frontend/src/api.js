@@ -182,6 +182,9 @@ export function ingestDriveFile(payload) {
   })
 }
 
+export function sendContact(payload) {
+  return api.post('/contact', payload)
+}
 
 // disconnect from Google drive
 export function disconnectGoogleDriveApi() {

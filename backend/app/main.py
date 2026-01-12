@@ -11,6 +11,8 @@ from Vector_setup.API.auth_router import router as user_router
 from Vector_setup.API.query_stream_routes import router as query_stream_router
 from Vector_setup.API.company_users_routes import router as company_user_router
 from Vector_setup.API.google_drive_router import router as google_drive_router
+from Vector_setup.API.contact_router import router as contact_router
+
 
 from Vector_setup.user.db import init_db, DBUser, engine
 from Vector_setup.user.password import get_password_hash
@@ -49,6 +51,8 @@ app.include_router(user_router, prefix="/api", tags=["user"])
 app.include_router(query_stream_router, prefix="/api", tags=["query_stream"])
 app.include_router(company_user_router, prefix="/api", tags=["company_users"])
 app.include_router(google_drive_router, prefix="/api", tags=["google_drive_connections"])
+app.include_router(contact_router, prefix="/api", tags=["contact"])
+
 
 # --- Env / constants ---
 VENDOR_EMAIL = os.getenv("VENDOR_EMAIL", "vendor@example.com")

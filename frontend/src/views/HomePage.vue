@@ -302,6 +302,95 @@
           </div>
         </div>
       </section>
+
+        <!-- Contact us -->
+        <section id="contact" class="border-t border-slate-900 bg-slate-950">
+          <div class="max-w-6xl mx-auto px-4 py-10 md:py-12 grid md:grid-cols-2 gap-8">
+            <div class="space-y-3">
+              <h2 class="text-sm font-semibold text-slate-100">Contact us</h2>
+              <p class="text-[11px] text-slate-400 max-w-sm">
+                Share a bit about your use case and we’ll get back to you by email. 
+                No sales blast, just a focused response.
+              </p>
+              <ul class="text-[11px] text-slate-400 space-y-1">
+                <li>• Product questions or roadmap input</li>
+                <li>• Pricing and multi‑tenant deployments</li>
+                <li>• Support or technical issues</li>
+              </ul>
+            </div>
+
+            <form class="space-y-3 text-[11px]" @submit.prevent="submitContact">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="block mb-1 text-slate-300">Name</label>
+                  <input
+                    v-model="contactForm.name"
+                    type="text"
+                    required
+                    class="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label class="block mb-1 text-slate-300">Email</label>
+                  <input
+                    v-model="contactForm.email"
+                    type="email"
+                    required
+                    class="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label class="block mb-1 text-slate-300">Topic</label>
+                <select
+                  v-model="contactForm.category"
+                  required
+                  class="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option disabled value="">Select a topic</option>
+                  <option value="product">Product question</option>
+                  <option value="pricing">Pricing / billing</option>
+                  <option value="deployment">Deployment / multi‑tenant setup</option>
+                  <option value="support">Support / bug report</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block mb-1 text-slate-300">Message</label>
+                <textarea
+                  v-model="contactForm.message"
+                  rows="4"
+                  required
+                  class="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+                  placeholder="Tell us briefly what you’re trying to do…"
+                ></textarea>
+              </div>
+
+              <div class="flex items-center justify-between">
+                <p class="text-[10px] text-slate-500">
+                  We’ll reply directly to your email. No marketing list.
+                </p>
+                <button
+                  type="submit"
+                  class="inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-500 text-[11px] font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+                  :disabled="contactSubmitting"
+                >
+                  {{ contactSubmitting ? 'Sending…' : 'Send message' }}
+                </button>
+              </div>
+
+              <p v-if="contactSuccess" class="text-[11px] text-emerald-400">
+                Thank you — your message has been sent.
+              </p>
+              <p v-if="contactError" class="text-[11px] text-red-400">
+                {{ contactError }}
+              </p>
+            </form>
+          </div>
+        </section>
+
     </main>
 
     <!-- Footer CTA -->
@@ -323,3 +412,37 @@
     </footer>
   </div>
 </template>
+<script setup>
+  import { ref } from 'vue'
+  import { sendContact } from '../api'
+
+  const contactForm = ref({
+    name: '',
+    email: '',
+    category: '',
+    message: ''
+  })
+
+  const contactSubmitting = ref(false)
+  const contactSuccess = ref(false)
+  const contactError = ref('')
+
+  async function submitContact() {
+    contactSubmitting.value = true
+    contactSuccess.value = false 
+    contactError.value = ''
+
+    try{
+      await sendContact(contactForm.value)
+      contactSuccess.value = true
+      contactForm.value = { name: '', email: '', category: '', message: ''}
+
+    }catch (e) {
+      contactError.value = a.response?.data.detail || 'Failed to send message, Please try again.'
+
+    } finally {
+      contactSubmitting.value = false
+    }
+  }
+
+</script>

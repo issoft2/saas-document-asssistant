@@ -438,7 +438,8 @@
       contactForm.value = { name: '', email: '', category: '', message: ''}
 
     }catch (e) {
-      contactError.value = a.response?.data.detail || 'Failed to send message, Please try again.'
+      contactError.value = 
+      e.response?.data.detail || 'Failed to send message, Please try again.'
 
     } finally {
       contactSubmitting.value = false

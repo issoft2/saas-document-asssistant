@@ -127,7 +127,11 @@ export function login({ email, password }) {
 }
 
 export function apiHeartbeat() {
-  return api.post('/auth/users/heartbeat')
+  api.post('/auth/users/heartbeat')
+}
+
+export function apiStopHeartbeat() {
+  api.post('/auth/user/stop/heartbeat')
 }
 
 export function apiLogout() {

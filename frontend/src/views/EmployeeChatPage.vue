@@ -226,7 +226,7 @@
               <div v-else class="flex">
                 <div class="flex flex-col max-w-4xl w-full">
                   <!-- Streaming state -->
-                  <template v-if="isStreaming && messages.length - 1">
+                  <template v-if="isStreaming && idx === messages.length - 1">
                     <div
                       class="flex items-center gap-3 mb-4 p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl border border-slate-700/50"
                     >

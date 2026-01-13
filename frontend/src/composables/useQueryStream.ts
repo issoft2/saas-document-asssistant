@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { logout } from '../authStore'
 
 export type ChartSpec = {
@@ -39,6 +39,7 @@ export function useQueryStream() {
 
     tick()
   }
+
 
   const startStream = async (payload: {
     question: string
@@ -239,4 +240,6 @@ export function useQueryStream() {
     stopStream,
     logout,
   }
+
+
 }

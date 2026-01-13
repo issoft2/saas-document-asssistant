@@ -36,7 +36,7 @@ def signup(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: UserOut = Depends(get_current_user),
-    tenant: Tenant = Depends(ensure_tenant_active),
+    # tenant: Tenant = Depends(ensure_tenant_active),
 ) -> UserOut:
      # 1) Block employees completely
     if current_user.role == "employee":

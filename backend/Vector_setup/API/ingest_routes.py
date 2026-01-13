@@ -280,7 +280,7 @@ def list_company_collections(
     # List collection names from your store
     names = store.list_collections(tenant_id)
     
-    collections_out = list[CollectionOut] = []
+    collections_out: list[CollectionOut] = []
     
     for name in names:
         # Get underlying Chroma collection for this tenant + collection

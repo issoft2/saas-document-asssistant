@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime
 
 
 from pydantic import BaseModel
@@ -9,51 +8,19 @@ from jose import JWTError, jwt, ExpiredSignatureError
 from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 
-from .auth_store import get_user_by_email, get_users_by_email
-from Vector_setup.base.auth_models import UserOut, UserInDB
+from .auth_store import get_user_by_email
+from Vector_setup.base.auth_models import UserOut
 from .db import DBUser, Tenant, get_db
 import os
-from .password import verify_password
 from sqlmodel import Session
-from Vector_setup.API.auth_router import get_current_user 
 
 
 SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "CHANGE_ME_SUPER_SECRET") # "CHANGE_ME_IN_PROD"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 # This must match your login endpoint path
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth")
 
-def create_access_token(
-    data: dict,
-    expires_delta: Optional[timedelta] = None,
-) -> str:
-    """
-    Put at least: {\"sub\": user.email, \"tenant_id\": user.tenant_id}
-    """
-    print("DEBUG SECRET_KEY:", SECRET_KEY, type(SECRET_KEY))
-
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # [web:298]
-
-
-
-def authenticate_user(email: str, password: str, db: Session) -> tuple[UserInDB, list[DBUser]] | None:
-    
-    users = get_users_by_email(email, db)
-    if not users:
-        return None
-    
-    # Assume same hashed_password for all; use the first as reference
-    ref = users[0]
-    if not verify_password(password, ref.hashed_password):
-        return None
-    
-    # Return one canonical user plus all tenant rows
-    return UserInDB.from_orm(ref), users
 
 
 class TokenUser(BaseModel):

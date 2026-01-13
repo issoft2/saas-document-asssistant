@@ -8,7 +8,7 @@ from Vector_setup.base.auth_models import UserCreate, UserOut, LoginRequestTenan
 from Vector_setup.user.auth_store import create_user, get_user_by_email, login_tenant_request, create_first_login_token
 from Vector_setup.user.jwt_core import create_access_token, authenticate_user, ACCESS_TOKEN_EXPIRE_MINUTES
 from Vector_setup.user.db import get_db, FirstLoginToken, engine, DBUser, Tenant
-from Vector_setup.user.auth_jwt import get_current_user
+from Vector_setup.user.auth_jwt import get_current_user, get_current_db_user
 from Vector_setup.services.email_service import send_first_login_email  # your email helper
 from Vector_setup.user.password import verify_password, get_password_hash
 
@@ -286,7 +286,7 @@ def logout(
 
 @router.post("/users/heartbeat")
 def heartbeat(
-    current_user: DBUser = Depends(get_current_user),
+    current_user: DBUser = Depends(get_current_db_user),
     db: Session = Depends(get_db),
 ):
     current_user.last_seen_at = datetime.utcnow()

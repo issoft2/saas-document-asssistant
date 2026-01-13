@@ -47,24 +47,24 @@ export async function login({ email, password }) {
   return data
 }
 
-let heartbeatId
 
 export async function startHeartbeat() {
-  if (heartbeatId) return
-  heartbeatId = window.setInterval(() => {
-    apiHeartbeat().catch(() => {})
-  }, 30_000)
+   apiHeartbeat().catch(() => {})
+}
+
+export async function stopHeartbeat() {
+  apiStopHeartbeat().catch(() => {})
 }
 
 export async function logout() {
   try {
+    apiStopHeartbeat()
+
     await apiLogout()
-  } catch (e) {}
-  
-  if (heartbeatId) {
-    clearInterval(heartbeatId)
-    heartbeatId = undefined
+  } catch (e) {
+    console.error("Error signing out of the system: ", e)
   }
+   
   authState.accessToken = null
   authState.user = null
   localStorage.removeItem('user')

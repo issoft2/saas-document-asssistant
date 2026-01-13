@@ -141,7 +141,7 @@ def login(
 def login_tenant(
     body: LoginRequestTenant,
     db: Session = Depends(get_db),
-    tenant: Tenant = Depends(ensure_tenant_active),
+    # tenant: Tenant = Depends(ensure_tenant_active),
 
 ):
     user = login_tenant_request(body, db)
@@ -218,7 +218,7 @@ class FirstLoginSetPasswordRequest(BaseModel):
     
 
 @router.post("/first-login/set-password")
-def set_first_login_password(payload: FirstLoginSetPasswordRequest,  tenant: Tenant = Depends(ensure_tenant_active),
+def set_first_login_password(payload: FirstLoginSetPasswordRequest
 ):
     raw_token = payload.token
     new_password = payload.new_password

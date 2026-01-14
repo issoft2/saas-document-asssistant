@@ -46,7 +46,7 @@
           </p>
 
           <h1 class="text-3xl md:text-4xl font-semibold tracking-tight text-slate-50">
-            Turn scattered company documents and data into one searchable, conversational brain.
+            Stop digging folders. Ask for answers.
           </h1>
 
           <p class="text-sm md:text-[15px] text-slate-300 leading-relaxed max-w-xl">

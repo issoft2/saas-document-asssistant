@@ -40,7 +40,7 @@
           <p
             class="inline-flex items-center gap-2 rounded-full border border-indigo-400/40 bg-indigo-500/10 px-3 py-1 text-[11px] font-medium text-indigo-100"
           >
-            Multi‑tenant AI copilot for modern organisations
+            Multi‑tenant AI copilot for modern organizations
             <span class="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
             <span class="text-[10px] text-emerald-200/80">Your content. Your rules. Your data.</span>
           </p>
@@ -50,8 +50,8 @@
           </h1>
 
           <p class="text-sm md:text-[15px] text-slate-300 leading-relaxed max-w-xl">
-            Upload policies, playbooks, reports, and spreadsheets. Company Guideline Assistant
-            becomes a private AI helpdesk that answers questions, explains procedures, and turns
+            Upload policies, playbooks, reports, and spreadsheets. Your Assistant
+            becomes a private AI help-desk that answers questions, explains procedures, and turns
             financial tables into clear comparisons and charts — without leaking data or inventing
             new rules.
           </p>

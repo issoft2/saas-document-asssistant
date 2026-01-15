@@ -135,7 +135,7 @@ def add_to_user_schema() -> None:
         
         
   #organization_id collection table 
- @app.on_event("startup")
+@app.on_event("startup")
 def add_to_user_schema() -> None:
     with engine.connect() as conn:
         res = conn.execute(text("PRAGMA table_info(collection);"))

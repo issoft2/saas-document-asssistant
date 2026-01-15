@@ -311,3 +311,17 @@ export interface CreateOrganizationPayload {
 export function createOrganization(payload: CreateOrganizationPayload) {
   return api.post<OrganizationOut>('/organizations', payload)
 }
+
+export function createCollectionForOrganization(
+  tenantId: string,
+  organizationId: string | number,
+  payload: {
+    name: string
+  },
+) {
+  return api.post(
+    `/tenants/${tenantId}/organizations/${organizationId}/collections`,
+    payload,
+  )
+}
+

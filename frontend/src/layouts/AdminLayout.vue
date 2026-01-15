@@ -175,24 +175,42 @@ import { authState, logout } from '../authStore'
 
 const mobileNavOpen = ref(false)
 
-const adminRoles = ['hr', 'executive', 'management', 'vendor', 'admin']
+// New RBAC-aligned roles for admin console
+const adminRoles = [
+  'group_admin',
+  'group_exe',
+  'group_hr',
+  'group_finance',
+  'group_operation',
+  'group_production',
+  'group_marketing',
+  'group_legal',
+  'sub_admin',
+  'sub_md',
+  'sub_hr',
+  'sub_finance',
+  'sub_operations',
+  'vendor',
+]
 
 const canSeeAdmin = computed(() => {
   const role = authState.user?.role
   if (!role) return false
-  return adminRoles.includes(String(role).toLowerCase())
+  return adminRoles.includes(String(role))
 })
 
 const roleLabel = computed(() => {
   const raw = authState.user?.role
   if (!raw) return 'Guest'
   const role = String(raw)
-  if (role === 'Employee') return 'Employee'
-  if (role === 'HR') return 'HR'
-  if (role === 'Executive') return 'Executive'
-  if (role === 'Management') return 'Management'
-  if (role === 'vendor') return 'vendor'
-  if (role === 'Admin') return 'admin'
+
+  if (role.startsWith('group_')) return 'Group ' + role.split('_')[1].toUpperCase()
+  if (role.startsWith('sub_')) return 'Subsidiary ' + role.split('_')[1].toUpperCase()
+  if (role === 'employee') return 'Employee'
+  if (role === 'vendor') return 'Vendor'
+
+  // fallback for any legacy/custom roles
   return role
 })
 </script>
+

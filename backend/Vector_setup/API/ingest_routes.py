@@ -6,6 +6,9 @@ from sqlmodel import Session, select, func
 from datetime import datetime, timedelta
 from Vector_setup.user.db import get_db, Tenant, Collection
 from Vector_setup.user.auth_jwt import ensure_tenant_active
+from Vector_setup.access.collections_acl import user_can_access_collection
+from Vector_setup.user.db import DBUser, Collection
+from Vector_setup.schema.schema_signature import CollectionOut, CompanyOut
 
 
 import logging
@@ -18,9 +21,10 @@ from Vector_setup.base.db_setup_management import (
     CompanyProvisionRequest,
     CompanyCreateRequest,
 )
-from Vector_setup.user.auth_jwt import get_current_user
+from Vector_setup.user.auth_jwt import get_current_user, get_current_db_user
 from Vector_setup.base.auth_models import UserOut
 from Vector_setup.services.extraction_documents_service import extract_text_from_upload
+from Vector_setup.user.roles import COLLECTION_ADMIN_ROLES, UPLOAD_ROLES, VENDOR_ROLES
 
 router = APIRouter()
 
@@ -32,34 +36,9 @@ def get_store() -> MultiTenantChromaStoreManager:
     return vector_store
 
 
-# ---------- Schemas for responses ----------
-
-class TenantCollectionConfigOut(BaseModel):
-    status: str
-    tenant_id: str
-    collection_name: str
-
-
-class CompanyOut(BaseModel):
-    tenant_id: str
-    display_name: str | None = None
-    created_at: datetime
-    plan: str
-    subscription_status: str
-    trial_ends_at: datetime | None
-
-
-
-class CollectionOut(BaseModel):
-    tenant_id: str
-    collection_name: str
-    doc_count: int
-
-
 # ---------- Role helpers ----------
-
 def require_vendor(current_user: UserOut = Depends(get_current_user)) -> UserOut:
-    if current_user.role != "vendor":
+    if current_user.role not in VENDOR_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only vendor can perform this action.",
@@ -67,19 +46,18 @@ def require_vendor(current_user: UserOut = Depends(get_current_user)) -> UserOut
     return current_user
 
 
-ALLOWED_COLLECTION_CREATORS = {"hr", "executive", "admin"}
 
 def require_collection_creator(
     current_user: UserOut = Depends(get_current_user),
 ) -> UserOut:
     """
-    Users allowed to create collections: hr, executive.
+    Users allowed to create collections: .
     Vendor is explicitly blocked here (even though vendor is 'super' elsewhere).
     """
-    if current_user.role in ALLOWED_COLLECTION_CREATORS:
+    if current_user.role in COLLECTION_ADMIN_ROLES:
         return current_user
 
-    if current_user.role == "vendor":
+    if current_user.role in  VENDOR_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Vendor cannot create collections for companies.",
@@ -87,7 +65,7 @@ def require_collection_creator(
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Only HR or Executive  or Admin. Role can create collections.",
+        detail="You are not allowed to create collections.",
     )
 
 
@@ -95,15 +73,15 @@ def require_uploader(
     current_user: UserOut = Depends(get_current_user),
 ) -> UserOut:
     """
-    Users allowed to upload documents: hr, executive.
+    Users allowed to upload documents.
     Extend if you want management etc.
     """
-    if current_user.role in ALLOWED_COLLECTION_CREATORS:
+    if current_user.role in UPLOAD_ROLES:
         return current_user
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Only HR or Executive can upload documents.",
+        detail="You are not allowed to upload Document.",
     )
 
 
@@ -184,7 +162,7 @@ def create_collection_for_current_tenant(
 
 ):
     """
-    HR/Executive creates a collection for their own tenant.
+     creates a collection for their own tenant.
     Tenant is taken from the authenticated user, not from the client.
     Vendor cannot create collections.
     """
@@ -231,7 +209,7 @@ def list_companies(
     - Vendor: sees all tenants.
     - Other users: only their own tenant.
     """
-    if current_user.role == "vendor":
+    if current_user.role in VENDOR_ROLES:
         stmt = select(Tenant)
     else:
         stmt = select(Tenant).where(Tenant.id == current_user.tenant_id)
@@ -255,60 +233,99 @@ def list_company_collections(
     tenant_id: str,
     store: MultiTenantChromaStoreManager = Depends(get_store),
     db: Session = Depends(get_db),
-    current_user: UserOut = Depends(get_current_user),
+    current_user: DBUser = Depends(get_current_db_user),
+    tenant: Tenant = Depends(ensure_tenant_active),
 ):
     """
-    List collections (names) for a tenant.
+    List collections for a tenant, filtered by ACL.
 
-    - Vendor: any tenant.
-    - Other users: only their own tenant.
+    - Vendor / group roles can list any tenant.
+    - Other users can only list their own tenant.
     """
-    if current_user.role != "vendor" and tenant_id != current_user.tenant_id:
+    # Tenant-level access check
+    if tenant_id != current_user.tenant_id and current_user.role not in  COLLECTION_ADMIN_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not allowed to access this tenant",
         )
 
-    # Optional: ensure tenant exists in SQL
-    tenant = db.get(Tenant, tenant_id)
-    if not tenant:
+    # Ensure tenant exists
+    tenant_row = db.get(Tenant, tenant_id)
+    if not tenant_row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tenant not found",
         )
 
-    # List collection names from your store
-    names = store.list_collections(tenant_id)
-    
-    collections_out: list[CollectionOut] = []
-    
-    for name in names:
-        # Get underlying Chroma collection for this tenant + collection
-        # Adjust method name/signature to your actual manager
-        chroma_collection = store.get_collection(
-            tenant_id=tenant_id,
-            collection_name=name
-        )
-        
-        # Chroma Collection has .count() -> number of items/embeddings in the collection 
+    # Fetch collections from SQL
+    stmt = select(Collection).where(Collection.tenant_id == tenant_id)
+    collections = db.exec(stmt).all()
+
+    # ACL filter
+    visible = [
+        c for c in collections
+        if user_can_access_collection(current_user, c)
+    ]
+
+    # Optionally get doc_count from Chroma
+    collections_out: List[CollectionOut] = []
+    for c in visible:
+        doc_count = 0
         try:
-            doc_count = chroma_collection.count()
+            chroma_col = store.get_collection(
+                tenant_id=tenant_id,
+                collection_name=c.name,
+            )
+            doc_count = chroma_col.count()
         except Exception:
             doc_count = 0
-            
+
         collections_out.append(
             CollectionOut(
-                tenant_id=tenant_id,
-                collection_name=name,
+                id=c.id,
+                tenant_id=c.tenant_id,
+                organization_id=c.organization_id,
+                name=c.name,
                 doc_count=doc_count,
+                visibility=c.visibility,
+                allowed_roles=c.allowed_roles,
+                allowed_user_ids=c.allowed_user_ids,
+                created_at=c.created_at,
+                updated_at=c.updated_at,
             )
         )
-    return collections_out    
+
+    return collections_out   
     
     
 
+def get_collection_for_user_or_403(
+    db: Session,
+    current_user: DBUser,
+    tenant_id: str,
+    collection_name: str,
+) -> Collection:
+    collection = (
+        db.query(Collection)
+        .filter(
+            Collection.tenant_id == tenant_id,
+            Collection.name == collection_name,
+        )
+        .first()
+    )
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    if not user_can_access_collection(current_user, collection):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not allowed for this collection.",
+        )
+
+    return collection
 
 # ---------- Document upload (production) ----------
+from Vector_setup.user.audit import write_audit_log
 
 @router.post("/documents/upload")
 async def upload_document(
@@ -318,6 +335,7 @@ async def upload_document(
     doc_id: Optional[str] = Form(None),
     file: UploadFile = File(...),
     store: MultiTenantChromaStoreManager = Depends(get_store),
+    db: Session = Depends(get_db),
     current_user: UserOut = Depends(require_uploader),
     tenant: Tenant = Depends(ensure_tenant_active),
 ):
@@ -325,7 +343,7 @@ async def upload_document(
     Upload a document file and index it into the tenant's collection.
 
     Rules:
-    - Only HR/Executive can upload (require_uploader).
+    - can upload (require_uploader).
     - Must upload only into their own tenant.
     """
     # Enforce tenant isolation
@@ -341,6 +359,14 @@ async def upload_document(
 
     if not collection_name.replace("-", "").replace("_", "").isalnum():
         raise HTTPException(status_code=400, detail="Invalid collection name")
+
+    #resolve collection and enforce ACL
+    collection = get_collection_for_user_or_403(
+        db=db,
+        current_user=current_user,
+        tenant_id=tenant_id,
+        collection_name=collection_name,
+    )
 
     # Read raw bytes
     raw_bytes = await file.read()
@@ -377,6 +403,8 @@ async def upload_document(
         "collection": collection_name,
          "collection_display_name": collection_display_name,
         "high_level_topic": high_level_topic,
+        "collection_id": collection.id,
+        "organization_id": collection.organization_id,
     }
 
     # Delegate to vector store (chunking + embeddings)
@@ -393,8 +421,63 @@ async def upload_document(
             status_code=500,
             detail=result.get("message", "Indexing failed"),
         )
+    
+    # add to audit log
+    write_audit_log(
+        db=db,
+        user=current_user,
+        action="document_ingest",
+        resource_type="collection",
+        resource_id=collection.id,
+        metadata={
+            "tenant_id": tenant_id,
+            "collection_name": collection.name,
+            "doc_id": final_doc_id,
+            "filename": file.filename,
+            "source": "upload",
+        },
+    )
+    
 
     return result
+
+
+@router.get("/collections", response_model=List[CollectionOut])
+def list_collections_for_current_user(
+    db: Session = Depends(get_db),
+    current_user: DBUser = Depends(get_current_db_user),
+):
+    """
+    List collections in the current user's tenant, filtered by ACL.
+    """
+    stmt = select(Collection).where(Collection.tenant_id == current_user.tenant_id)
+    collections = db.exec(stmt).all()
+
+    visible = [
+        c for c in collections
+        if user_can_access_collection(current_user, c)
+    ]
+
+    # If you have doc_count from SQL or Chroma, compute it here; else 0.
+    result: List[CollectionOut] = []
+    for c in visible:
+        result.append(
+            CollectionOut(
+                id=c.id,
+                tenant_id=c.tenant_id,            # fixed: was c.tenant
+                organization_id=c.organization_id,
+                name=c.name,
+                doc_count=0,                      # or real count if available
+                visibility=c.visibility,
+                allowed_roles=c.allowed_roles,
+                allowed_user_ids=c.allowed_user_ids,
+                created_at=c.created_at,
+                updated_at=c.updated_at,
+            )
+        )
+
+    return result
+    
 
 
 

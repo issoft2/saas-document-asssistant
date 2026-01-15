@@ -25,17 +25,17 @@
 
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-slate-200 text-xs">
-        <thead class="bg-slate-50">
-          <tr>
-            <th class="px-3 py-2 text-left font-semibold text-slate-600">Name</th>
-            <th class="px-3 py-2 text-left font-semibold text-slate-600">Email</th>
-            <th class="px-3 py-2 text-left font-semibold text-slate-600">Role</th>
-            <th class="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
-            <th class="px-3 py-2 text-left font-semibold text-slate-600">Online</th>
-            <th class="px-3 py-2 text-left font-semibold text-slate-600">Last seen</th>
-            <th class="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
-          </tr>
-        </thead>
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold text-slate-600">Name</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-600">Email</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-600">Role</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-600">Online</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-600">Last seen</th>
+              <th class="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
+            </tr>
+          </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="user in users" :key="user.id">
               <td class="px-3 py-2">
@@ -56,7 +56,7 @@
                   class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
                   :class="roleBadgeClass(user.role)"
                 >
-                  {{ user.role || 'N/A' }}
+                  {{ readableRole(user.role) }}
                 </span>
               </td>
 
@@ -121,7 +121,6 @@
               </td>
             </tr>
           </tbody>
-
         </table>
       </div>
 
@@ -134,7 +133,7 @@
       </div>
     </section>
 
-    <!-- Simple edit dialog -->
+    <!-- Edit dialog -->
     <div
       v-if="editingUser"
       class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
@@ -178,14 +177,41 @@
               class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
+
+          <!-- Role select aligned with backend -->
           <div>
             <label class="block mb-1 text-slate-600">Role</label>
-            <input
+            <select
               v-model="editForm.role"
-              type="text"
-              class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
+              class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              <option disabled value="">Select role</option>
+
+              <!-- Employee -->
+              <option value="employee">Employee</option>
+
+              <!-- Subsidiary roles -->
+              <option value="sub_hr">Subsidiary HR</option>
+              <option value="sub_finance">Subsidiary Finance</option>
+              <option value="sub_operations">Subsidiary Operations</option>
+              <option value="sub_md">Subsidiary MD</option>
+              <option value="sub_admin">Subsidiary Admin</option>
+
+              <!-- Group roles (if applicable in this tenant) -->
+              <option value="group_hr">Group HR</option>
+              <option value="group_finance">Group Finance</option>
+              <option value="group_operation">Group Operations</option>
+              <option value="group_production">Group Production</option>
+              <option value="group_marketing">Group Marketing</option>
+              <option value="group_legal">Group Legal</option>
+              <option value="group_exe">Group Executive</option>
+              <option value="group_admin">Group Admin</option>
+
+              <!-- Vendor (rare to edit here, but allowed) -->
+              <option value="vendor">Vendor</option>
+            </select>
           </div>
+
           <div class="flex items-center gap-2 mt-1">
             <input
               id="edit-active"
@@ -225,6 +251,7 @@
   </div>
 </template>
 
+
 <script setup>
 import { ref, onMounted } from 'vue'
 import {
@@ -248,13 +275,29 @@ const editForm = ref({
 const saving = ref(false)
 const editError = ref('')
 
+// Map raw role to badge color
 function roleBadgeClass(role) {
-  const r = (role || '').toString().toLowerCase()
-  if (['admin', 'management', 'executive'].includes(r)) {
-    return 'bg-indigo-50 text-indigo-700'
-  }
-  if (r === 'hr') return 'bg-emerald-50 text-emerald-700'
+  const r = (role || '').toString()
+
+  if (r.startsWith('group_')) return 'bg-indigo-50 text-indigo-700'
+  if (r.startsWith('sub_')) return 'bg-emerald-50 text-emerald-700'
+  if (r === 'employee') return 'bg-slate-100 text-slate-700'
+  if (r === 'vendor') return 'bg-amber-50 text-amber-800'
   return 'bg-slate-100 text-slate-600'
+}
+
+// Optional helper to show nicer label (if used later in template)
+function readableRole(role) {
+  if (!role) return 'N/A'
+  if (role === 'employee') return 'Employee'
+  if (role === 'vendor') return 'Vendor'
+  if (role.startsWith('group_')) {
+    return 'Group ' + role.split('_')[1].toUpperCase()
+  }
+  if (role.startsWith('sub_')) {
+    return 'Subsidiary ' + role.split('_')[1].toUpperCase()
+  }
+  return role
 }
 
 async function loadUsers() {
@@ -262,6 +305,7 @@ async function loadUsers() {
   error.value = ''
   try {
     const res = await listCompanyUsers()
+    // Backend already excludes vendor if you chose that filter there
     users.value = res.data || []
   } catch (e) {
     error.value = e.response?.data?.detail || 'Failed to load users.'
@@ -292,7 +336,6 @@ async function saveEdit() {
   editError.value = ''
   try {
     const res = await updateCompanyUser(editingUser.value.id, editForm.value)
-    // update local list
     const idx = users.value.findIndex(u => u.id === editingUser.value.id)
     if (idx !== -1) {
       users.value[idx] = res.data
@@ -329,12 +372,10 @@ function formatLastSeen(value) {
   const diffH = Math.floor(diffMin / 60)
   if (diffH < 24) return `${diffH} h ago`
 
-  return d.toLocaleString() // or toLocaleDateString()
+  return d.toLocaleString()
 }
 
-
 onMounted(() => {
-    console.log('CompanyUsersPage script loaded')
   loadUsers()
 })
 </script>

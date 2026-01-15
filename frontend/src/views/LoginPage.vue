@@ -18,10 +18,11 @@
           <label class="block text-xs font-medium text-slate-700">
             Email
           </label>
-          <input
+            <input
             v-model="email"
             type="email"
             class="w-full rounded-lg border px-3 py-2 text-sm"
+            :disabled="loading"
             required
           />
         </div>
@@ -34,6 +35,7 @@
             v-model="password"
             type="password"
             class="w-full rounded-lg border px-3 py-2 text-sm"
+            :disabled="loading"
             required
           />
         </div>
@@ -94,10 +96,21 @@
   </div>
 </template>
 
-<script setup>
-
+<script setup lang="ts">
 import { ref } from 'vue'
 import { login, loginToTenant } from '../authStore'
+
+interface TenantOption {
+  tenant_id: string
+  name?: string | null
+  role?: string | null
+}
+
+interface LoginResponse {
+  requires_tenant_selection?: boolean
+  tenants?: TenantOption[]
+  // access_token and redirects are handled inside authStore.login()
+}
 
 const email = ref('')
 const password = ref('')
@@ -105,47 +118,68 @@ const loading = ref(false)
 const error = ref('')
 
 const requiresTenantSelection = ref(false)
-const tenantOptions = ref([])
+const tenantOptions = ref<TenantOption[]>([])
 const selectedTenantId = ref('')
+
+function resetTenantSelection() {
+  requiresTenantSelection.value = false
+  tenantOptions.value = []
+  selectedTenantId.value = ''
+}
 
 async function onSubmit() {
   loading.value = true
   error.value = ''
-  requiresTenantSelection.value = false
-  tenantOptions.value = []
-  selectedTenantId.value = ''
-  try {
-   const res = await login({ email: email.value, password: password.value })
+  resetTenantSelection()
 
-    // Expect shape: {access_token? requires_tenant_selection, tenants? }
+  try {
+    const res = (await login({
+      email: email.value.trim(),
+      password: password.value,
+    })) as LoginResponse
+
+    // Expect shape: { access_token? requires_tenant_selection, tenants? }
     if (res.requires_tenant_selection) {
       requiresTenantSelection.value = true
-      tenantOptions.value = res.tenants || []
-    } else {
-      // Token already stored inside login(), redirect happens there
+      tenantOptions.value = res.tenants ?? []
+      if (!tenantOptions.value.length) {
+        error.value = 'No companies found for this account.'
+        requiresTenantSelection.value = false
+      }
     }
-    // redirect handled inside login()
-  } catch (e) {
-    error.value = e.response?.data?.detail || 'Login failed.'
+    // Otherwise, token + redirect are handled inside login()
+  } catch (e: any) {
+    console.error('login error', e)
+    error.value =
+      e?.response?.data?.detail ||
+      e?.message ||
+      'Login failed.'
   } finally {
     loading.value = false
   }
 }
 
 async function onTenantSubmit() {
+  if (!selectedTenantId.value) return
+
   loading.value = true
   error.value = ''
 
   try {
     await loginToTenant({
-      email: email.value,
+      email: email.value.trim(),
       tenant_id: selectedTenantId.value,
     })
-  } catch (e) {
-    console.error('tenant error', e)
-    error.value = e.response?.data?.detail || e.message || 'Tenant login failed.'
+    // Assume loginToTenant handles token + redirect as well
+  } catch (e: any) {
+    console.error('tenant login error', e)
+    error.value =
+      e?.response?.data?.detail ||
+      e?.message ||
+      'Tenant login failed.'
   } finally {
     loading.value = false
   }
 }
 </script>
+

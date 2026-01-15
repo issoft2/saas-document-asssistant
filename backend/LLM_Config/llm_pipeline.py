@@ -617,6 +617,7 @@ async def llm_pipeline_stream(
     top_k: int = 100,
     result_holder: Optional[dict] = None,
     last_doc_id: Optional[str] = None,
+    collection_names: Optional[List[str]] = None,  # NEW
 ) -> AsyncGenerator[str, None]:
     intent, rewritten, domain, chart_only = infer_intent_and_rewrite(
         user_message=question,
@@ -703,7 +704,8 @@ async def llm_pipeline_stream(
 
     retrieval = await store.query_policies(
         tenant_id=tenant_id,
-        collection_name=None,
+        collection_name=None, # backward compartible
+        collection_names=collection_names or None,  # New 
         query=effective_question,
         top_k=effective_top_k,
         where=query_filter,
@@ -715,6 +717,7 @@ async def llm_pipeline_stream(
         retrieval = await store.query_policies(
         tenant_id=tenant_id,
         collection_name=None,
+        collection_names=collection_names or None,  # NEW: preferred
         query=effective_question,
         top_k=effective_top_k,
         where=None,

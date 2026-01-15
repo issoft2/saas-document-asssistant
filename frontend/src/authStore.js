@@ -16,13 +16,12 @@ export const authState = reactive({
 
 export async function login({ email, password }) {
   const { data } = await apiLogin({ email, password })
-  
+
   if (data.requires_tenant_selection) {
     // phase 1 only: no token, no /me, no redirect
     return data
   }
 
-  // single-tenant case: token is already present
   const token = data.access_token
   if (!token) {
     throw new Error('No token returned from login')
@@ -38,7 +37,17 @@ export async function login({ email, password }) {
   // 🔹 start heartbeat once user is in
   startHeartbeat()
 
-  if (['hr', 'executive', 'management', 'admin'].includes(user.role)) {
+  // NEW: role-based routing for new RBAC model
+  const adminRoles = [
+    'group_admin',
+    'group_exe',
+    'group_hr',
+    'sub_admin',
+    'sub_md',
+    'vendor',
+  ]
+
+  if (adminRoles.includes(user.role)) {
     await router.push('/admin/companies')
   } else {
     await router.push('/chat')
@@ -46,6 +55,7 @@ export async function login({ email, password }) {
 
   return data
 }
+
 
 
 export async function startHeartbeat() {

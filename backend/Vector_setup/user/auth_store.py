@@ -1,18 +1,29 @@
 # auth_store.py
 from sqlmodel import Session, select
 from  Vector_setup.base.auth_models  import UserCreate, UserInDB, LoginRequestTenant
-from .db import DBUser, FirstLoginToken
+from .db import DBUser, FirstLoginToken, Organization
+from typing import List, Optional
 import uuid
 from datetime import datetime, timedelta
 import secrets, hashlib
 from Vector_setup.user.password import get_password_hash
+from fastapi import HTTPException, Depends 
+from Vector_setup.user.auth_jwt import get_current_db_user 
 
 def create_user(data: UserCreate, db: Session) -> UserInDB:
     user_id = str(uuid.uuid4())
+    
+    # Optionally validate that organization belongs to the same tenant
+    org = db.get(Organization, data.organization_id)
+    if not org or org.tenant_id != data.tenant_id:
+        raise HTTPException(status_code=400, detail="Invalid organization for tenant")
+    
+    
     db_user = DBUser(
         id=user_id,
         email=data.email,
         tenant_id=data.tenant_id,
+        organization_id=data.organization_id,
         hashed_password=get_password_hash((data.password or "")[:64]),
         first_name=data.first_name,
         last_name=data.last_name,
@@ -23,7 +34,7 @@ def create_user(data: UserCreate, db: Session) -> UserInDB:
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    return UserInDB(id=db_user.id, email=db_user.email, tenant_id=db_user.tenant_id, hashed_password=db_user.hashed_password, first_name=db_user.first_name, last_name=db_user.last_name, date_of_birth=db_user.date_of_birth, phone=db_user.phone, role=db_user.role)
+    return db_user  # UserInDB(id=db_user.id, email=db_user.email, tenant_id=db_user.tenant_id, hashed_password=db_user.hashed_password, first_name=db_user.first_name, last_name=db_user.last_name, date_of_birth=db_user.date_of_birth, phone=db_user.phone, role=db_user.role)
 
 
 def create_first_login_token(db: Session, user: UserInDB ) -> str:
@@ -107,3 +118,12 @@ def get_db_user_by_email(
         .where(DBUser.tenant_id == tenant_id)
     )
     return db.exec(stmt).first()
+
+
+from Vector_setup.user.roles import UPLOAD_ROLES
+
+def require_uploader(current_user: DBUser = Depends(get_current_db_user)) -> DBUser:
+    if current_user.role not in UPLOAD_ROLES:
+        raise HTTPException(status_code=403, detail="Not allowed to upload documents.")
+    return current_user
+    

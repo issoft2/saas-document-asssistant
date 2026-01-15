@@ -5,6 +5,8 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api", 
 })
 console.log("Axios baseURL:", api.defaults.baseURL)
+
+
 export function me() {
   return api.get('/auth/me')
 }
@@ -48,10 +50,13 @@ export function removeAuthToken() {
 }
 
 // Configure company + collection in one step
-export function configureCompanyAndCollection({ tenantId, collectionName }) {
+export function configureCompanyAndCollection({ tenantId, collectionName, plan, subscription_status }) {
   return api.post('/companies/configure', {
     tenant_id: tenantId,
     collection_name: collectionName,
+    plan: plan,
+    subscription_status: subscription_status,
+
   })
 }
 
@@ -194,4 +199,18 @@ export function sendContact(payload) {
 // disconnect from Google drive
 export function disconnectGoogleDriveApi() {
   return api.post('/google-drive/disconnect')
+}
+
+// api.ts
+export interface OrganizationOut {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: "umbrella" | "subsidiary";
+  parent_id: string | null;
+}
+
+export async function fetchOrganizations() {
+  const { data } = await axios.get<OrganizationOut[]>("/organizations");
+  return data;
 }

@@ -1,6 +1,6 @@
 # db.py
 from sqlmodel import SQLModel, Field, create_engine, Session, UniqueConstraint, Column, JSON
-from typing import Optional
+from typing import Optional, Dict, Any
 import os
 from datetime import datetime
 from enum import Enum
@@ -143,4 +143,21 @@ class Organization(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)    
     
-    
+class AuditLog(SQLModel, table=True):
+     __tablename__ = "audit_logs"
+     
+     id: str = Field(primary_key=True, index=True)
+     tenant_id: str = Field(index=True)
+     user_id: str = Field(index=True)
+     action: str = Field(index=True)
+     resource_type: str = Field(index=True)
+     resource_id: Optional[str] = Field(default=None, index=True)
+     
+     # Small, flexible metadata
+     metadata: Optional[Dict[str, Any]] = Field(
+         default=None,
+         sa_column=Column(JSON),
+     )
+     
+     created: datetime = Field(default_factory=datetime.utcnow)
+        

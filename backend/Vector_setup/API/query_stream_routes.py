@@ -12,12 +12,14 @@ from Vector_setup.user.db import get_db, Tenant
 from Vector_setup.API.ingest_routes import get_store
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
 from Vector_setup.user.auth_jwt import (
-    get_current_user_from_header_or_query,
+    get_current_db_user_from_header_or_query,
     TokenUser,
 )
 from Vector_setup.chat_history.chat_store import get_last_n_turns, save_chat_turn, get_last_doc_id
 from LLM_Config.llm_pipeline import llm_pipeline_stream
 from Vector_setup.user.auth_jwt import ensure_tenant_active
+from Vector_setup.access.collections_acl import get_allowed_collections_for_user
+from Vector_setup.user.audit import write_audit_log
 
 import logging
 
@@ -33,7 +35,7 @@ async def query_knowledge_stream(
     conversation_id: str,
     top_k: int = 100,
     collection_name: Optional[str] = None,  # currently unused, kept for compatibility
-    current_user: TokenUser = Depends(get_current_user_from_header_or_query),
+    current_user: TokenUser = Depends(get_current_db_user_from_header_or_query),
     store: MultiTenantChromaStoreManager = Depends(get_store),
     db: Session = Depends(get_db),
 
@@ -50,7 +52,24 @@ async def query_knowledge_stream(
     if not conversation_id:
         raise HTTPException(status_code=403, detail="Session has expired!")
 
-    # Recent conversation history for RAG + intent
+    tenant_id = current_user.tenant_id
+    
+    # -- resolve allowed collections for this query ---
+    allowed_collections = get_allowed_collections_for_user(
+        db=db,
+        user=current_user,
+        requested_names=collection_name,
+    )
+    
+    if not allowed_collections:
+        raise HTTPException(
+            status_code=403,
+            detail="No accessible collections available for this query.",
+        )
+        
+    collection_names = [c.name for c in allowed_collections]    
+
+    #  conversation history for RAG + intent
     history_turns = get_last_n_turns(
         db=db,
         tenant_id=current_user.tenant_id,
@@ -59,7 +78,7 @@ async def query_knowledge_stream(
         conversation_id=conversation_id,
     )
 
-    # Optional: last primary document id (for FOLLOWUP_ELABORATE)
+    # last primary document id (for FOLLOWUP_ELABORATE)
     last_doc_id = get_last_doc_id(
         db=db,
         tenant_id=current_user.tenant_id,
@@ -76,6 +95,7 @@ async def query_knowledge_stream(
         result_holder: Dict[str, Any] = {}
 
         # --- high-level pipeline steps ---
+        
         # 1) Understand question
         yield send_status("Analyzing your question…")
 
@@ -96,6 +116,7 @@ async def query_knowledge_stream(
                 top_k=top_k,
                 result_holder=result_holder,   # will contain sources, primary_doc_id, etc.
                 last_doc_id=last_doc_id,       # helps keep follow-ups on same doc
+                collection_names=collection_names,
             ):
                 # Stop if client disconnects
                 if await request.is_disconnected():
@@ -174,6 +195,23 @@ async def query_knowledge_stream(
                     
                 except Exception:
                     logger.warning("Failed to serialize chart_spec for SSE")    
+                # Audit the query once per request
+        try:
+            write_audit_log(
+                db=db,
+                user=current_user,
+                action="query",
+                resource_type="collection",
+                resource_id=",".join(collection_names),
+                metadata={
+                    "question": question,
+                    "top_k": top_k,
+                    "collections": collection_names,
+                    "conversation_id": conversation_id,
+                },
+            )
+        except Exception:
+            logger.warning("Failed to write audit log for query", exc_info=True)
 
         # 6) Finalize
         yield send_status("Finalizing…")

@@ -72,6 +72,7 @@
           />
         </div>
 
+        <!-- Tenant assignment (admin types or pastes tenant id) -->
         <div class="space-y-1">
           <label class="block text-xs font-medium text-slate-700">
             Tenant ID
@@ -80,11 +81,15 @@
             v-model="tenantId"
             type="text"
             class="w-full rounded-lg border px-3 py-2 text-sm"
-            placeholder="e.g. acme_corp"
+            placeholder="e.g. helium_health, acme_corp"
             required
           />
+          <p class="text-[11px] text-slate-400">
+            Use the exact tenant ID from the Companies list.
+          </p>
         </div>
 
+        <!-- Role aligned with new backend -->
         <div class="space-y-1">
           <label class="block text-xs font-medium text-slate-700">User role</label>
           <select
@@ -93,12 +98,29 @@
             required
           >
             <option disabled value="">Select role</option>
-            <option value="management">Management</option>
-            <option value="executive">Executive</option>
-            <option value="hr">HR</option>
-            <option value="employee">Employee</option>
-            <option value="admin">Admin</option>
 
+            <!-- Employee -->
+            <option value="employee">Employee</option>
+
+            <!-- Subsidiary-level roles -->
+            <option value="sub_hr">Subsidiary HR</option>
+            <option value="sub_finance">Subsidiary Finance</option>
+            <option value="sub_operations">Subsidiary Operations</option>
+            <option value="sub_md">Subsidiary MD</option>
+            <option value="sub_admin">Subsidiary Admin</option>
+
+            <!-- Group-level roles (if creating group users here) -->
+            <option value="group_hr">Group HR</option>
+            <option value="group_finance">Group Finance</option>
+            <option value="group_operation">Group Operations</option>
+            <option value="group_production">Group Production</option>
+            <option value="group_marketing">Group Marketing</option>
+            <option value="group_legal">Group Legal</option>
+            <option value="group_exe">Group Executive</option>
+            <option value="group_admin">Group Admin</option>
+
+            <!-- Vendor (rare, but allowed from vendor console) -->
+            <option value="vendor">Vendor</option>
           </select>
         </div>
 
@@ -122,6 +144,7 @@
   </div>
 </template>
 
+
 <script setup>
 import { ref } from 'vue'
 import { signup } from '../api'
@@ -144,18 +167,23 @@ async function onSignup() {
   message.value = ''
   error.value = ''
   loading.value = true
+
   try {
     await signup({
       email: email.value,
       password: password.value,
-      tenantId: tenantId.value,
+      tenantId: tenantId.value,          // organization assignment
       first_name: firstName.value,
       last_name: lastName.value,
       date_of_birth: dateOfBirth.value,
       phone: phone.value,
-      role: role.value,
+      role: role.value,                  // new RBAC roles
     })
     message.value = 'User created successfully.'
+    // Optional: clear form after success
+    // firstName.value = ''
+    // lastName.value = ''
+    // ...
   } catch (e) {
     error.value = e.response?.data?.detail || 'Signup failed.'
   } finally {
@@ -163,3 +191,4 @@ async function onSignup() {
   }
 }
 </script>
+

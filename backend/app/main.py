@@ -12,11 +12,14 @@ from Vector_setup.API.query_stream_routes import router as query_stream_router
 from Vector_setup.API.company_users_routes import router as company_user_router
 from Vector_setup.API.google_drive_router import router as google_drive_router
 from Vector_setup.API.contact_router import router as contact_router
+from Vector_setup.API.organizations_router import router as organization_router
+from backend.Vector_setup.API.collections_router import router as collection_router
 
 
 from Vector_setup.user.db import init_db, DBUser, engine
 from Vector_setup.user.password import get_password_hash
 from Vector_setup.base.db_setup_management import MultiTenantChromaStoreManager
+
 
 
 load_dotenv()
@@ -52,6 +55,9 @@ app.include_router(query_stream_router, prefix="/api", tags=["query_stream"])
 app.include_router(company_user_router, prefix="/api", tags=["company_users"])
 app.include_router(google_drive_router, prefix="/api", tags=["google_drive_connections"])
 app.include_router(contact_router, prefix="/api", tags=["contact"])
+app.include_router(collection_router, prefix="/api", tags=["collection"])
+app.include_router(organization_router, prefix="/api", tags=["organization"])
+
 
 
 # --- Env / constants ---

@@ -8,7 +8,6 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from Vector_setup.user.db import DBUser, TenantGoogleDriveConfig, IngestedDriveFile,  get_db, Tenant
 from Vector_setup.API.admin_permission import require_tenant_admin
-from Vector_setup.user.auth_jwt import get_current_user
 import os
 from pydantic import BaseModel
 from typing import List, Optional
@@ -20,6 +19,7 @@ from Vector_setup.services.extraction_documents_service import extract_text_from
 from googleapiclient.errors import HttpError
 import requests
 from Vector_setup.user.auth_jwt import ensure_tenant_active, ensure_tenant_active_by_id
+from Vector_setup.API.ingest_routes import get_collection_for_user_or_403
 
 
 
@@ -385,6 +385,8 @@ SUPPORTED_MIME_TYPES = {
 }
 
 
+from Vector_setup.user.audit import write_audit_log
+
 @router.post("/ingest")
 async def ingest_drive_file(
     req: DriveIngestRequest,
@@ -402,6 +404,21 @@ async def ingest_drive_file(
     - Google Docs/Sheet/Slides via export.
     """
     tenant_id = current_user.tenant_id
+    
+    # Enforce tenant isolation
+    if req.tenant_id is not None and req.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not allowed to ingest into this tenant.",
+        )
+
+    # Resolve collection and enforce ACL (STEP 3.3)
+    collection = get_collection_for_user_or_403(
+        db=db,
+        current_user=current_user,
+        tenant_id=tenant_id,
+        collection_name=req.collection_name,
+    )
     service = get_drive_service_for_tenant(tenant_id=tenant_id, db=db)
 
     # 1) Get file metadata
@@ -497,6 +514,8 @@ async def ingest_drive_file(
         "collection": req.collection_name,
         "collection_display_name": collection_display_name,
         "high_level_topic": high_level_topic,
+        "collection_id": collection.id,
+        "organization_id": collection.organization_id,
     }
     
 
@@ -513,6 +532,23 @@ async def ingest_drive_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=result.get("message", "Indexing failed!"),
         )
+
+    # Add to audit log
+    write_audit_log(
+        db=db,
+        user=current_user,
+        action="document_ingest",
+        resource_type="collection",
+        resource_id=collection.id,
+        metadata={
+            "tenant_id": tenant_id,
+            "collection_name": collection.name,
+            "doc_id": doc_id,
+            "filename": original_name,
+            "source": "google_drive",
+            "drive_file_id": req.file_id,
+        },
+    )
 
     # 6) Mark file as ingested for this tenant (for UX "already ingested" flag)
     mark_file_ingested(

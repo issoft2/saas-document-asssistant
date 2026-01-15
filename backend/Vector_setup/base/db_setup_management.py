@@ -178,10 +178,6 @@ class MultiTenantChromaStoreManager:
 
         return chunks
 
-
-
-
-
     # -----------------------
     # Tenant / collection API
     # -----------------------
@@ -364,10 +360,12 @@ class MultiTenantChromaStoreManager:
         query: str,
         top_k: int = 100,
         where: Optional[dict] = None,
+        collection_names: Optional[List[str]] = None, # NEW
     ) -> dict:
         """
         Vector search within tenant collections.
 
+        - if collection_names provided: restrict to those UI names.
         - Single collection if collection_name provided
         - All tenant collections if None
         """
@@ -377,9 +375,20 @@ class MultiTenantChromaStoreManager:
         if not query_embeddings:
             return {"query": query, "results": []}
 
-        if collection_name:
+        collections = []
+        
+        # 1 Explicit list (ACL-filtered)
+        if collection_names:
+            for ui_name in collection_names:
+                full_name = self._tenant_collection_name(tenant_id, ui_name)
+                collections.append(self._client.get_or_create_collection(full_name))
+        
+        #2  Backward-compat single collection_name
+        elif collection_name:
             full_name = self._tenant_collection_name(tenant_id, collection_name)
             collections = [self._client.get_or_create_collection(full_name)]
+            
+        # 3 Fallback: all tenant collections    
         else:
             prefix = f"{tenant_id}__"
             all_cols = self._client.list_collections()

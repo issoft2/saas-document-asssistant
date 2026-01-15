@@ -62,21 +62,41 @@ async def get_current_user(
         )
 
 
-async def get_current_user_from_header_or_query(
+async def get_current_db_user_from_header_or_query(
     request: Request,
-) -> TokenUser:
-    # 1) Try Authorization header (existing behavior)
+    db: Session = Depends(get_db),
+) -> DBUser:
+    # 1) Try Authorization header
     auth = request.headers.get("Authorization")
+    token: str | None = None
+
     if auth and auth.lower().startswith("bearer "):
         token = auth.split(" ", 1)[1]
-        return get_current_user(token)
 
     # 2) Fallback: token from query param
-    token = request.query_params.get("token")
-    if token:
-        return decode_and_get_user(token)
+    if not token:
+        token = request.query_params.get("token")
 
-    raise HTTPException(status_code=401, detail="Not authenticated")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Decode into your token user model (email, tenant_id, etc.)
+    token_user = decode_and_get_user(token)
+
+    # Load DBUser
+    db_user = (
+        db.query(DBUser)
+        .filter(
+            DBUser.email == token_user.email,
+            DBUser.tenant_id == token_user.tenant_id,
+        )
+        .first()
+    )
+    if not db_user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return db_user
+
 
 def decode_and_get_user(token: str) -> TokenUser:
     """

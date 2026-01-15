@@ -393,12 +393,27 @@
                 required
               >
                 <option disabled value="">Select role</option>
-                <option value="management">Management</option>
-                <option value="executive">Executive</option>
-                <option value="hr">HR</option>
+                <!-- Tenant employee roles -->
                 <option value="employee">Employee</option>
-                <option value="admin">Admin</option>
+
+                <!-- Subsidiary-level roles -->
+                <option value="sub_hr">Subsidiary HR</option>
+                <option value="sub_finance">Subsidiary Finance</option>
+                <option value="sub_operations">Subsidiary Operations</option>
+                <option value="sub_md">Subsidiary MD</option>
+                <option value="sub_admin">Subsidiary Admin</option>
+
+                <!-- Group-level roles (if this panel is used for group tenants too) -->
+                <option value="group_hr">Group HR</option>
+                <option value="group_finance">Group Finance</option>
+                <option value="group_operation">Group Operations</option>
+                <option value="group_production">Group Production</option>
+                <option value="group_marketing">Group Marketing</option>
+                <option value="group_legal">Group Legal</option>
+                <option value="group_exe">Group Executive</option>
+                <option value="group_admin">Group Admin</option>
               </select>
+
             </div>
 
             <div class="flex justify-end gap-2 pt-2">
@@ -437,6 +452,9 @@ import { ref, computed, onMounted } from 'vue'
 import { authState } from '../authStore'
 import { listCompanies, listCollections, uploadDocument, signup } from '../api'
 
+/**
+ * State
+ */
 const companies = ref([])
 const loading = ref(false)
 const loadingCollections = ref('')
@@ -447,19 +465,46 @@ const currentUser = computed(() => authState.user)
 const currentRole = computed(() => currentUser.value?.role || '')
 const currentTenantId = computed(() => currentUser.value?.tenant_id || '')
 
-const isVendor = computed(() => currentRole.value === 'vendor')
+/**
+ * RBAC role groups (aligned with new backend)
+ */
+const vendorRoles = ['vendor']
+
+const groupAdminRoles = [
+  'group_admin',
+  'group_exe',
+  'group_hr',
+  'group_finance',
+  'group_operation',
+  'group_production',
+  'group_marketing',
+  'group_legal',
+]
+
+const subAdminRoles = [
+  'sub_admin',
+  'sub_md',
+  'sub_hr',
+  'sub_finance',
+  'sub_operations',
+]
+
+const isVendor = computed(() => vendorRoles.includes(currentRole.value))
+const isGroupAdmin = computed(() => groupAdminRoles.includes(currentRole.value))
+const isSubAdmin = computed(() => subAdminRoles.includes(currentRole.value))
+
+// Capabilities
 const canUpload = computed(() =>
-  ['hr', 'executive', 'admin', 'management'].includes(
-    currentRole.value?.toLowerCase(),
-  ),
-)
-const canManageUsers = computed(() =>
-  ['vendor', 'hr', 'executive', 'admin', 'management'].includes(
-    currentRole.value?.toLowerCase(),
-  ),
+  isVendor.value || isGroupAdmin.value || isSubAdmin.value,
 )
 
-// Upload modal state
+const canManageUsers = computed(() =>
+  isVendor.value || isGroupAdmin.value || isSubAdmin.value,
+)
+
+/**
+ * Upload modal state
+ */
 const showUploadModal = ref(false)
 const activeTenantId = ref('')
 const selectedCollectionName = ref('')
@@ -478,7 +523,9 @@ const activeCollections = computed(() => {
   return company?.collections || []
 })
 
-// User signup modal state
+/**
+ * User signup modal state
+ */
 const showUserModal = ref(false)
 const userTenantId = ref('')
 const userEmail = ref('')
@@ -492,9 +539,14 @@ const userLoading = ref(false)
 const userMessage = ref('')
 const userError = ref('')
 
-// Permissions
+/**
+ * Permission helpers
+ * - Vendor: can upload/manage users for all tenants
+ * - Group/Sub admins: only within their own tenant
+ */
 function canUploadToTenant(tenantId) {
   if (!canUpload.value) return false
+  if (isVendor.value) return true
   return currentTenantId.value && currentTenantId.value === tenantId
 }
 
@@ -504,7 +556,9 @@ function canManageUsersForTenant(tenantId) {
   return currentTenantId.value && currentTenantId.value === tenantId
 }
 
-// Helpers
+/**
+ * Helpers
+ */
 function formatDate(value) {
   if (!value) return '—'
   const d = new Date(value)
@@ -542,13 +596,14 @@ function statusBadgeClass(status) {
   }
 }
 
-// Data loading
+/**
+ * Data loading
+ */
 async function loadCompanies() {
   loading.value = true
   error.value = ''
   try {
     const res = await listCompanies()
-    // Handle either axios-style { data } or direct array
     const payload = Array.isArray(res) ? res : res?.data
     companies.value = (payload || []).map((c) => ({
       ...c,
@@ -582,9 +637,12 @@ async function loadCollections(tenantId) {
   }
 }
 
-// Upload modal handlers
+/**
+ * Upload modal handlers
+ */
 function openUploadModal(company) {
   if (!canUploadToTenant(company.tenant_id)) return
+
   activeTenantId.value = company.tenant_id
   selectedCollectionName.value =
     (company.collections &&
@@ -641,9 +699,12 @@ async function onUploadFromAdmin() {
   }
 }
 
-// User modal handlers
+/**
+ * User modal handlers
+ */
 function openUserModal(company) {
   if (!canManageUsersForTenant(company.tenant_id)) return
+
   userTenantId.value = company.tenant_id
   userEmail.value = ''
   userPassword.value = ''
@@ -701,8 +762,12 @@ async function onCreateUser() {
   }
 }
 
+/**
+ * Lifecycle
+ */
 onMounted(loadCompanies)
 </script>
+
 
 <style scoped>
 .fade-enter-active,

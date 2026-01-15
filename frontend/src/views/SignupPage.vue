@@ -5,10 +5,10 @@
         Create account
       </h1>
       <p class="text-xs text-slate-500">
-        Admin-only: create a user and assign a company/tenant.
+        Admin-only: create a user and assign a tenant and organization.
       </p>
 
-      <form class="space-y-3" @submit.prevent="onSignup">
+      <form class="space-y-3" @submit.prevent="onSubmit">
         <!-- Name row -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="space-y-1">
@@ -72,7 +72,7 @@
           />
         </div>
 
-        <!-- Tenant assignment (admin types or pastes tenant id) -->
+        <!-- Tenant assignment -->
         <div class="space-y-1">
           <label class="block text-xs font-medium text-slate-700">
             Tenant ID
@@ -90,26 +90,28 @@
         </div>
 
         <!-- Organization -->
+        <div class="space-y-1">
           <label class="block text-xs font-medium text-slate-700 mb-1">
             Organization
-            <select
-              v-model="organizationId"
-              class="w-full border rounded-md px-3 py-2 text-sm"
-              :disabled="loadingOrgs || submitting"
-              required
-            >
-              <option value="" disabled>
-                {{ loadingOrgs ? 'Loading organizations…' : 'Select organization' }}
-              </option>
-              <option
-                v-for="org in organizations"
-                :key="org.id"
-                :value="org.id"
-              >
-                {{ org.name }} ({{ org.type }})
-              </option>
-            </select>
           </label>
+          <select
+            v-model="organizationId"
+            class="w-full border rounded-md px-3 py-2 text-sm bg-white"
+            :disabled="loadingOrgs || submitting"
+            required
+          >
+            <option value="" disabled>
+              {{ loadingOrgs ? 'Loading organizations…' : 'Select organization' }}
+            </option>
+            <option
+              v-for="org in organizations"
+              :key="org.id"
+              :value="org.id"
+            >
+              {{ org.name }} ({{ org.type }})
+            </option>
+          </select>
+        </div>
 
         <!-- Role aligned with new backend -->
         <div class="space-y-1">
@@ -131,7 +133,7 @@
             <option value="sub_md">Subsidiary MD</option>
             <option value="sub_admin">Subsidiary Admin</option>
 
-            <!-- Group-level roles (if creating group users here) -->
+            <!-- Group-level roles -->
             <option value="group_hr">Group HR</option>
             <option value="group_finance">Group Finance</option>
             <option value="group_operation">Group Operations</option>
@@ -141,7 +143,7 @@
             <option value="group_exe">Group Executive</option>
             <option value="group_admin">Group Admin</option>
 
-            <!-- Vendor (rare, but allowed from vendor console) -->
+            <!-- Vendor -->
             <option value="vendor">Vendor</option>
           </select>
         </div>
@@ -149,9 +151,9 @@
         <button
           type="submit"
           class="btn-primary w-full"
-          :disabled="loading"
+          :disabled="submitting || loadingOrgs"
         >
-          <span v-if="!loading">Create user</span>
+          <span v-if="!submitting">Create user</span>
           <span v-else>Creating…</span>
         </button>
       </form>
@@ -169,26 +171,22 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { signup, fetchOrganizations, type OrganizationOut } from '../api'
-import { authState } from '../authStore'
 
 const email = ref('')
 const password = ref('')
-const first_name = ref('')
-const last_name = ref('')
-const date_of_birth = ref('')
+const firstName = ref('')
+const lastName = ref('')
+const dateOfBirth = ref('')
 const phone = ref('')
-const role = ref<'group_exe' | 'group_admin' | 'sub_admin' | 'employee'>(
-  'group_exe',
-)
+const tenantId = ref('')
+const role = ref<string>('group_exe')
 
 const organizations = ref<OrganizationOut[]>([])
 const organizationId = ref<string>('')
 const loadingOrgs = ref(false)
 const submitting = ref(false)
+const message = ref('')
 const error = ref('')
-
-// if you already have tenant in authState
-const tenantId = computed(() => authState.user?.tenant_id || '')
 
 async function loadOrganizations() {
   try {
@@ -204,7 +202,7 @@ async function loadOrganizations() {
 
 async function onSubmit() {
   if (!tenantId.value) {
-    error.value = 'No tenant associated with your account.'
+    error.value = 'Tenant ID is required.'
     return
   }
   if (!organizationId.value) {
@@ -214,20 +212,23 @@ async function onSubmit() {
 
   submitting.value = true
   error.value = ''
+  message.value = ''
 
   try {
     await signup({
       email: email.value,
       password: password.value,
       tenantId: tenantId.value,
-      first_name: first_name.value || undefined,
-      last_name: last_name.value || undefined,
-      date_of_birth: date_of_birth.value || undefined,
+      first_name: firstName.value || undefined,
+      last_name: lastName.value || undefined,
+      date_of_birth: dateOfBirth.value || undefined,
       phone: phone.value || undefined,
       role: role.value,
       organization_id: organizationId.value,
     })
-    // handle success (redirect or reset)
+    message.value = 'User created successfully.'
+    // optional: reset some fields
+    password.value = ''
   } catch (e: any) {
     error.value =
       e?.response?.data?.detail || 'Could not create user.'

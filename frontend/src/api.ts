@@ -287,6 +287,21 @@ export async function fetchOrganizations() {
   return data
 }
 
+// export function fetchOrganizationsByTenant(tenantId: string) {
+//   return api.get<OrganizationOut[]>(`/tenants/${tenantId}/organizations`)
+// }
+
+export function createOrganizationForTenant(tenantId: string, payload: {
+  name: string
+  type: 'umbrella' | 'subsidiary'
+}) {
+  return api.post<OrganizationOut>(
+    `/tenants/${tenantId}/organizations`,
+    payload,
+  )
+}
+
+
 export interface CreateOrganizationPayload {
   name: string
   type: 'umbrella' | 'subsidiary'

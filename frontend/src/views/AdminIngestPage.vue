@@ -138,6 +138,131 @@
       </p>
     </section>
 
+        <!-- Organizations for this tenant (vendor + admins) -->
+    <section
+      v-if="currentTenantScopeId"
+      class="bg-white border rounded-xl shadow-sm p-4 md:p-5 space-y-4"
+    >
+      <header class="flex items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-900">
+            Organizations for this tenant
+          </h2>
+          <p class="text-xs text-slate-500">
+            Define umbrella and subsidiary organizations under
+            <span class="font-semibold">{{ currentTenantScopeId }}</span>.
+          </p>
+        </div>
+      </header>
+
+      <!-- Create organization inline form -->
+      <form
+        class="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] items-end"
+        @submit.prevent="onCreateOrganization"
+      >
+        <div class="space-y-1">
+          <label class="block text-xs font-medium text-slate-700">
+            Organization name
+          </label>
+          <input
+            v-model="orgName"
+            type="text"
+            class="w-full rounded-lg border px-3 py-2 text-sm"
+            placeholder="e.g. Helium Group, Lagos Clinic"
+            required
+          />
+        </div>
+
+        <div class="space-y-1">
+          <label class="block text-xs font-medium text-slate-700">
+            Type
+          </label>
+          <select
+            v-model="orgType"
+            class="w-full rounded-lg border px-3 py-2 text-sm bg-white"
+            required
+          >
+            <option value="umbrella">Umbrella (group-level)</option>
+            <option value="subsidiary">Subsidiary</option>
+          </select>
+        </div>
+
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="orgCreating || !currentTenantScopeId"
+          >
+            <span v-if="!orgCreating">Create org</span>
+            <span v-else>Creating…</span>
+          </button>
+        </div>
+      </form>
+
+      <p v-if="orgError" class="text-xs text-red-600">
+        {{ orgError }}
+      </p>
+      <p v-if="orgMessage" class="text-xs text-emerald-600">
+        {{ orgMessage }}
+      </p>
+
+      <!-- Organizations list -->
+      <div class="space-y-2">
+        <h3 class="text-xs font-semibold text-slate-700">
+          Existing organizations
+        </h3>
+
+        <p v-if="orgLoading" class="text-[11px] text-slate-500">
+          Loading organizations…
+        </p>
+        <p
+          v-else-if="!organizations.length"
+          class="text-[11px] text-slate-500"
+        >
+          No organizations defined yet for this tenant.
+        </p>
+
+        <div
+          v-else
+          class="overflow-x-auto rounded-lg border border-slate-200"
+        >
+          <table class="min-w-full text-[11px]">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-600">
+                  ID
+                </th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-600">
+                  Name
+                </th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-600">
+                  Type
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="org in organizations"
+                :key="org.id"
+                class="border-t border-slate-100"
+              >
+                <td class="px-3 py-2 font-mono text-[10px] text-slate-700">
+                  {{ org.id }}
+                </td>
+                <td class="px-3 py-2 text-slate-800">
+                  {{ org.name }}
+                </td>
+                <td class="px-3 py-2 text-slate-500 capitalize">
+                  {{ org.type }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
     <!-- Tenant-scoped collection creation (group/sub admins only) -->
     <section
       v-if="canCreateCollections"
@@ -556,7 +681,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { authState } from '../authStore'
 import {
   configureCompanyAndCollection,
@@ -568,6 +693,9 @@ import {
   listDriveFiles,
   ingestDriveFile,
   disconnectGoogleDriveApi,
+  fetchOrganizations,
+  createOrganization,
+  type OrganizationOut,
 } from '../api'
 
 interface DriveFileOut {
@@ -653,21 +781,82 @@ const uploadError = ref('')
 
 const fileInput = ref<HTMLInputElement | null>(null)
 
-// --- Google Drive connection state ---
-const googleDriveStatus = ref<'connected' | 'disconnected'>('disconnected')
-const googleDriveEmail = ref('')
-const connectingDrive = ref(false)
+// --- Organizations for tenant ---
+const organizations = ref<OrganizationOut[]>([])
+const orgLoading = ref(false)
+const orgCreating = ref(false)
+const orgName = ref('')
+const orgType = ref<'umbrella' | 'subsidiary'>('umbrella')
+const orgError = ref('')
+const orgMessage = ref('')
 
-// --- Google Drive files / ingest ---
-const driveLoading = ref(false)
-const driveError = ref('')
-const driveIngestMessage = ref('')
+// If vendor, use the tenant they are configuring via tenantId input.
+// Otherwise, use the current authenticated tenant.
+const currentTenantScopeId = computed(() => {
+  if (isVendor.value) {
+    return tenantId.value || currentTenantId.value || ''
+  }
+  return currentTenantId.value || ''
+})
 
-const currentFolderId = ref<string | null>(null)
-const driveFiles = ref<DriveFileOut[]>([])
-const selectedDriveFileIds = ref<Set<string>>(new Set<string>())
-const ingestStatusById = ref<Record<string, IngestStatus>>({})
-const ingesting = ref(false)
+async function loadOrganizationsForTenant() {
+  orgError.value = ''
+  orgMessage.value = ''
+
+  const tid = currentTenantScopeId.value
+  if (!tid) {
+    organizations.value = []
+    return
+  }
+
+  orgLoading.value = true
+  try {
+    // assumes backend returns organizations for current tenant from token
+    const data = await fetchOrganizations()
+    organizations.value = data || []
+  } catch (e: any) {
+    orgError.value =
+      e?.response?.data?.detail || 'Failed to load organizations.'
+  } finally {
+    orgLoading.value = false
+  }
+}
+
+async function onCreateOrganization() {
+  orgError.value = ''
+  orgMessage.value = ''
+
+  const tid = currentTenantScopeId.value
+  const trimmed = orgName.value.trim()
+
+  if (!tid) {
+    orgError.value = 'No tenant selected for organizations.'
+    return
+  }
+  if (!trimmed) {
+    orgError.value = 'Organization name is required.'
+    return
+  }
+
+  orgCreating.value = true
+  try {
+    // If backend infers tenant from token, drop tenant_id here.
+    await createOrganization({
+      tenant_id: tid,
+      name: trimmed,
+      type: orgType.value,
+    })
+    orgName.value = ''
+    orgType.value = 'umbrella'
+    orgMessage.value = 'Organization created.'
+    await loadOrganizationsForTenant()
+  } catch (e: any) {
+    orgError.value =
+      e?.response?.data?.detail || 'Could not create organization.'
+  } finally {
+    orgCreating.value = false
+  }
+}
 
 // --- Collections helpers ---
 async function loadCollections() {
@@ -820,6 +1009,10 @@ async function onUpload() {
 }
 
 // --- Google Drive connection ---
+const googleDriveStatus = ref<'connected' | 'disconnected'>('disconnected')
+const googleDriveEmail = ref('')
+const connectingDrive = ref(false)
+
 async function connectGoogleDrive() {
   if (connectingDrive.value) return
   connectingDrive.value = true
@@ -856,6 +1049,15 @@ async function disconnectGoogleDrive() {
 }
 
 // --- Google Drive selection helpers ---
+const driveLoading = ref(false)
+const driveError = ref('')
+const driveIngestMessage = ref('')
+const currentFolderId = ref<string | null>(null)
+const driveFiles = ref<DriveFileOut[]>([])
+const selectedDriveFileIds = ref<Set<string>>(new Set<string>())
+const ingestStatusById = ref<Record<string, IngestStatus>>({})
+const ingesting = ref(false)
+
 const selectableDriveFiles = computed<DriveFileOut[]>(() =>
   (driveFiles.value || []).filter(
     f => !f.is_folder && !f.already_ingested && f.is_supported,
@@ -1011,5 +1213,13 @@ async function ingestSelectedDriveFiles() {
 onMounted(() => {
   loadCollections()
   loadGoogleDriveStatus()
+  if (currentTenantScopeId.value) {
+    loadOrganizationsForTenant()
+  }
+})
+
+// If vendor edits tenantId manually, reload org list for that tenant
+watch(currentTenantScopeId, () => {
+  loadOrganizationsForTenant()
 })
 </script>

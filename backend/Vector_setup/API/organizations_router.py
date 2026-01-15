@@ -36,7 +36,7 @@ def create_organization(
     _ensure_org_admin(current_user)
 
     # Tenant isolation
-    if body.tenant_id != current_user.tenant_id:
+    if body.tenant_id != current_user.tenant_id and current_user.role != 'vendor':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not allowed to create organizations for this tenant.",

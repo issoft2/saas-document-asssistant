@@ -89,6 +89,28 @@
           </p>
         </div>
 
+        <!-- Organization -->
+          <label class="block text-xs font-medium text-slate-700 mb-1">
+            Organization
+            <select
+              v-model="organizationId"
+              class="w-full border rounded-md px-3 py-2 text-sm"
+              :disabled="loadingOrgs || submitting"
+              required
+            >
+              <option value="" disabled>
+                {{ loadingOrgs ? 'Loading organizations…' : 'Select organization' }}
+              </option>
+              <option
+                v-for="org in organizations"
+                :key="org.id"
+                :value="org.id"
+              >
+                {{ org.name }} ({{ org.type }})
+              </option>
+            </select>
+          </label>
+
         <!-- Role aligned with new backend -->
         <div class="space-y-1">
           <label class="block text-xs font-medium text-slate-700">User role</label>
@@ -144,51 +166,75 @@
   </div>
 </template>
 
-
-<script setup>
-import { ref } from 'vue'
-import { signup } from '../api'
-
-const firstName = ref('')
-const lastName = ref('')
-const dateOfBirth = ref('')
-const phone = ref('')
-const role = ref('')
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { signup, fetchOrganizations, type OrganizationOut } from '../api'
+import { authState } from '../authStore'
 
 const email = ref('')
 const password = ref('')
-const tenantId = ref('')
+const first_name = ref('')
+const last_name = ref('')
+const date_of_birth = ref('')
+const phone = ref('')
+const role = ref<'group_exe' | 'group_admin' | 'sub_admin' | 'employee'>(
+  'group_exe',
+)
 
-const loading = ref(false)
-const message = ref('')
+const organizations = ref<OrganizationOut[]>([])
+const organizationId = ref<string>('')
+const loadingOrgs = ref(false)
+const submitting = ref(false)
 const error = ref('')
 
-async function onSignup() {
-  message.value = ''
+// if you already have tenant in authState
+const tenantId = computed(() => authState.user?.tenant_id || '')
+
+async function loadOrganizations() {
+  try {
+    loadingOrgs.value = true
+    organizations.value = await fetchOrganizations()
+  } catch (e: any) {
+    error.value =
+      e?.response?.data?.detail || 'Could not load organizations.'
+  } finally {
+    loadingOrgs.value = false
+  }
+}
+
+async function onSubmit() {
+  if (!tenantId.value) {
+    error.value = 'No tenant associated with your account.'
+    return
+  }
+  if (!organizationId.value) {
+    error.value = 'Please select an organization.'
+    return
+  }
+
+  submitting.value = true
   error.value = ''
-  loading.value = true
 
   try {
     await signup({
       email: email.value,
       password: password.value,
-      tenantId: tenantId.value,          // organization assignment
-      first_name: firstName.value,
-      last_name: lastName.value,
-      date_of_birth: dateOfBirth.value,
-      phone: phone.value,
-      role: role.value,                  // new RBAC roles
+      tenantId: tenantId.value,
+      first_name: first_name.value || undefined,
+      last_name: last_name.value || undefined,
+      date_of_birth: date_of_birth.value || undefined,
+      phone: phone.value || undefined,
+      role: role.value,
+      organization_id: organizationId.value,
     })
-    message.value = 'User created successfully.'
-    // Optional: clear form after success
-    // firstName.value = ''
-    // lastName.value = ''
-    // ...
-  } catch (e) {
-    error.value = e.response?.data?.detail || 'Signup failed.'
+    // handle success (redirect or reset)
+  } catch (e: any) {
+    error.value =
+      e?.response?.data?.detail || 'Could not create user.'
   } finally {
-    loading.value = false
+    submitting.value = false
   }
 }
-</script>
 
+onMounted(loadOrganizations)
+</script>

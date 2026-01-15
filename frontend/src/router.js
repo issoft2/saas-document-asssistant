@@ -45,6 +45,7 @@ const routes = [
         path: 'users',
         name: 'company-users',
         component: CompanyUsersPage,
+        meta: { requiresAuth: true, roles: ['vendor', 'group_admin', 'group_exe', 'sub_admin'] }
       },
     ],
   },

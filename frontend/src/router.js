@@ -13,7 +13,22 @@ import NotAllowedPage from './views/NotAllowedPage.vue'
 import FirstLogin from './views/FirstLoginPage.vue'
 import OrganizationPage from './views/OrganizationsAdminPage.vue'
 
-
+const adminRoles = [
+  'vendor',
+  'group_admin',
+  'group_exe',
+  'group_hr',
+  'group_finance',
+  'group_operation',
+  'group_production',
+  'group_marketing',
+  'group_legal',
+  'sub_admin',
+  'sub_md',
+  'sub_hr',
+  'sub_finance',
+  'sub_operations',
+]
 
 const routes = [
 
@@ -28,7 +43,7 @@ const routes = [
     component: AdminLayout,
     meta: {
       requiresAuth: true,
-      roles: ['hr', 'executive', 'management', 'vendor', 'admin'], // only these see admin layout
+      roles: adminRoles, // only these see admin layout
     },
     children: [
       {
@@ -45,7 +60,7 @@ const routes = [
         path: 'users',
         name: 'company-users',
         component: CompanyUsersPage,
-        meta: { requiresAuth: true, roles: ['vendor', 'group_admin', 'group_exe', 'sub_admin'] }
+        meta: { requiresAuth: true, roles: adminRoles }
       },
     ],
   },
@@ -58,7 +73,7 @@ const routes = [
     component: EmployeeLayout,
     meta: {
       requiresAuth: true,
-      roles: ['employee', 'hr', 'executive', 'management', 'vendor'], // everyone logged in
+      roles: adminRoles, // everyone logged in
     },
     children: [
       {

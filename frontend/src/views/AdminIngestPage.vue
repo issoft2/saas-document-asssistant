@@ -506,7 +506,6 @@ import { authState } from '../authStore'
 import {
   configureTenantPayload,
   uploadDocument,
-  listCollections,
   getGoogleDriveAuthUrl,
   getGoogleDriveStatus,
   listDriveFiles,
@@ -565,23 +564,7 @@ const uploadError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 
 // --- Collections helpers (read-only) ---
-async function loadCollections() {
-  if (!currentTenantId.value) {
-    collections.value = []
-    return
-  }
-  try {
-    const resp = await listCollections()
-    const rows = resp.data || []
-    collections.value = rows.map((row: any) => row.collection_name)
-    if (!activeCollectionName.value && collections.value.length) {
-      activeCollectionName.value = collections.value[0]
-    }
-  } catch (e) {
-    console.error('Failed to load collections:', e)
-    collections.value = []
-  }
-}
+
 
 // Vendor: configure tenant (plan/status)
 async function onConfigure() {
@@ -882,7 +865,6 @@ async function ingestSelectedDriveFiles() {
 
 // --- Lifecycle ---
 onMounted(() => {
-  loadCollections()
   loadGoogleDriveStatus()
 })
 </script>

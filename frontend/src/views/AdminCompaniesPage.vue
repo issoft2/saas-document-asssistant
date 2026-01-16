@@ -597,7 +597,7 @@ import { ref, computed, onMounted } from 'vue'
 import { authState } from '../authStore'
 import {
   listCompanies,
-  listCollections,
+  listCollectionsForTenant,
   fetchOrganizations,
   createOrganizationForTenant,
   createCollectionForOrganization,
@@ -735,7 +735,7 @@ async function loadCollectionsAndOrgs(tenantId) {
     // fetch orgs + collections concurrently
     const [orgRes, colRes] = await Promise.all([
       fetchOrganizations(tenantId),
-      listCollections(tenantId),
+      listCollectionsForTenant(tenantId),
     ])
 
     const orgPayload = Array.isArray(orgRes) ? orgRes : orgRes?.data

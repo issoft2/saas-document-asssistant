@@ -11,6 +11,7 @@ services:
       HF_HUB_DISABLE_XET: "1" 
       APP_RESET_DATA: "false" 
       CHROMA_PATH: "/app/chromadb_multi_tenant" 
+      ANONYMIZED_TELEMETRY: "false"
 
       SMTP_HOST: "smtp.gmail.com"
       SMTP_PORT: "465"

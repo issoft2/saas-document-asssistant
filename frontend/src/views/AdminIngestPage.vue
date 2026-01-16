@@ -17,7 +17,7 @@
           Configure company / tenant
         </h2>
         <p class="text-xs text-slate-500">
-          Only vendor can provision a new company/tenant. Collections are created separately within the tenant.
+          Only vendor can provision a new company/tenant, Organization is created with the tenant
         </p>
       </header>
 

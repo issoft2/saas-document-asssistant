@@ -67,7 +67,7 @@ class OrganizationCreateIn(BaseModel):
     tenant_id: str
     name: str
     
-class OrganizationUpdate(SQLModel):
+class OrganizationUpdate(BaseModel):
     name: Optional[str] = None    
 
 class OrganizationOut(BaseModel):

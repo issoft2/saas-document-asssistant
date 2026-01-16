@@ -84,6 +84,19 @@ export interface OrganizationOut {
   name: string
 }
 
+export interface  CollectionOut{
+  id: string
+  tenant_id: string
+  name: string
+  organization_id: string
+  doc_count: number
+  visibility: 'tenant' | 'org' | 'role' | 'user' // match your enum
+  allowed_roles: string[]
+  allowed_user_ids: string[]
+  rceated_at: string
+  updated_at: string
+
+}
 // ---- Basic helpers ----
 export function me() {
   return api.get<MeResponse>('/auth/me')
@@ -154,9 +167,10 @@ export async function fetchOrganizations(
 
 
 // List collections for a company (admin listing page or tenant scoped)
-export function listCollections(tenant_id: string) {
-  return api.get(`/collections/${tenant_id}`)
+export function listCollectionsForTenant(tenant_id: string) {
+  return api.get<CollectionOut[]>('/collections', { params: { tenant_id } })
 }
+
 
 
 

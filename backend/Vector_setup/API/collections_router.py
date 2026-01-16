@@ -211,7 +211,8 @@ def update_collection(
     )
 
 @router.get("", response_model=List[CollectionOut])
-def list_collections_for_current_user(
+def list_collections(
+    tenant_id: Optional[str] = Query(default=None),
     visibility: Optional[str] = Query(
         default=None,
         description="Optional visibility filter: tenant|org|role|user",
@@ -219,19 +220,24 @@ def list_collections_for_current_user(
     db: Session = Depends(get_db),
     current_user: DBUser = Depends(get_current_db_user),
 ):
-    """
-    List collections in the current user's tenant, filtered by ACL.
+    # non-vendor: always own tenant
+    if current_user.role != "vendor":
+        effective_tenant_id = current_user.tenant_id
+    else:
+        # vendor: must specify tenant_id
+        if not tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="tenant_id is required for vendor.",
+            )
+        effective_tenant_id = tenant_id
 
-    Optional filters:
-    - visibility: filter by collection visibility type.
-    """
-    stmt = select(Collection).where(Collection.tenant_id == current_user.tenant_id)
+    stmt = select(Collection).where(Collection.tenant_id == effective_tenant_id)
 
     if visibility is not None:
         stmt = stmt.where(Collection.visibility == visibility)
 
     collections = db.exec(stmt).all()
-
     visible = [c for c in collections if user_can_access_collection(current_user, c)]
 
     result: List[CollectionOut] = []
@@ -242,7 +248,7 @@ def list_collections_for_current_user(
                 tenant_id=c.tenant_id,
                 organization_id=c.organization_id,
                 name=c.name,
-                doc_count=0,  # or compute via Chroma if needed
+                doc_count=0,
                 visibility=c.visibility,
                 allowed_roles=c.allowed_roles,
                 allowed_user_ids=c.allowed_user_ids,
@@ -250,5 +256,4 @@ def list_collections_for_current_user(
                 updated_at=c.updated_at,
             )
         )
-
     return result

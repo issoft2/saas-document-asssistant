@@ -337,7 +337,7 @@ async def upload_document(
     store: MultiTenantChromaStoreManager = Depends(get_store),
     db: Session = Depends(get_db),
     current_user: UserOut = Depends(require_uploader),
-    tenant: Tenant = Depends(ensure_tenant_active),
+    # tenant: Tenant = Depends(ensure_tenant_active),
 ):
     """
     Upload a document file and index it into the tenant's collection.

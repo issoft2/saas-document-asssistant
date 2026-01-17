@@ -558,6 +558,7 @@ const activeCollectionName = ref('')
 const docTitle = ref('')
 const file = ref<File | null>(null)
 const dragOver = ref(false)
+const tenantIdStr = ref('')
 
 const configureLoading = ref(false)
 const configureMessage = ref('')
@@ -568,6 +569,8 @@ const uploadMessage = ref('')
 const uploadError = ref('')
 
 const fileInput = ref<HTMLInputElement | null>(null)
+tenantIdStr.value = String(currentTenantId.value)
+
 
 // Load collections for current org (/collections/by-org)
 async function loadCollectionsForOrg() {
@@ -669,14 +672,12 @@ async function onUpload() {
 
   uploadLoading.value = true
   try {
-    console.log('currentTenantId in onUpload:', currentTenantId.value)
-    const tenantIdStr = String(currentTenantId.value)
     await uploadDocument({
       collectionName: name,
       title: docTitle.value,
       file: file.value,
       doc_id: '',
-      tenant_id: tenantIdStr,
+      tenant_id: tenantIdStr.value,
     })
     uploadMessage.value = 'Document uploaded and indexed successfully.'
     if (fileInput.value) fileInput.value.value = ''
@@ -854,13 +855,13 @@ async function ingestSelectedDriveFiles() {
       ...ingestStatusById.value,
       [id]: 'running',
     }
-
+   
     try {
       await ingestDriveFile({
         fileId: fileObj.id,
         collectionName: activeCollectionName.value,
         title: fileObj.name,
-        tenant_id: String(currentTenantId.value || ''),
+        tenant_id: tenantIdStr.value,
       })
 
       ingestStatusById.value = {

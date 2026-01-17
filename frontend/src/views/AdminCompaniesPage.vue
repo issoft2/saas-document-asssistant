@@ -435,7 +435,7 @@
                 class="w-full rounded-lg border px-3 py-2 text-sm bg-white h-32"
               >
                 <option
-                  v-for="u in accessUsersForTenant"
+                  v-for="u in accessUsersForOrgTenant"
                   :key="u.id"
                   :value="String(u.id)"
                 >
@@ -722,7 +722,7 @@ import {
   createOrganizationForTenant,
   createCollectionForOrganization,
   signup,
-  listCompanyUsers,
+  listOrgTenantUsers,
   getCollectionAccess,
   updateCollectionAccess,
 } from '../api'
@@ -733,7 +733,7 @@ const accessTenantId = ref('')
 const accessOrgId = ref('')
 const accessCollection: any = ref(null)
 
-const accessUsersForTenant = ref<any[]>([])
+const accessUsersForOrgTenant = ref<any[]>([])
 const accessSelectedUserIds = ref<string[]>([])
 const accessSelectedRoles = ref<string[]>([])
 const accessLoading = ref(false)
@@ -819,7 +819,7 @@ function openCollectionAccessModal(company, org, col) {
   accessError.value = ''
   accessMessage.value = ''
   accessValidationError.value = false
-  accessUsersForTenant.value = []
+  accessUsersForOrgTenant.value = []
   accessSelectedUserIds.value = []
   showCollectionAccessModal.value = true
 
@@ -832,14 +832,14 @@ async function loadCollectionAccess() {
   accessLoading.value = true
   try {
     const [usersRes, aclRes] = await Promise.all([
-      listCompanyUsers,
+      listOrgTenantUsers,
       getCollectionAccess(accessCollection.value.id),
     ])
 
     const usersPayload = Array.isArray(usersRes) ? usersRes : usersRes?.data
     const aclPayload = Array.isArray(aclRes) ? aclRes : aclRes?.data
 
-    accessUsersForTenant.value = usersPayload || []
+    accessUsersForOrgTenant.value = usersPayload || []
     accessSelectedUserIds.value = (aclPayload?.allowed_user_ids || []).map(String)
     accessSelectedRoles.value = (aclPayload?.allowed_roles || []).map(String)
   }catch(e) {

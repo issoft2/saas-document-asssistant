@@ -9,6 +9,8 @@ from Vector_setup.user.auth_jwt import ensure_tenant_active
 from Vector_setup.user.auth_store import get_current_db_user
 from Vector_setup.user.roles import ORG_MANAGER_ROLES
 from Vector_setup.user.permissions import is_sub_role, is_group_role
+from Vector_setup.API.collections_router import _ensure_collection_admin
+from Vector_setup.base.auth_models import UserOut
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 
@@ -154,3 +156,16 @@ def delete_organization(
 
     db.delete(org)
     db.commit()
+
+
+@router.get("/users", response_model=list[UserOut])
+def list_users_for_org(
+    db: Session = Depends(get_db),
+    current_user: DBUser = Depends(_ensure_collection_admin),
+):
+    stmt = (
+        select(DBUser)
+        .where(DBUser.tenant_id == current_user.tenant_id)
+        .where(DBUser.organization_id == current_user.organization_id)
+    )
+    return db.exec(stmt).all()

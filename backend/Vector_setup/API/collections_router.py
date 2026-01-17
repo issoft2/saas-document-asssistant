@@ -249,7 +249,6 @@ def list_collections(
                 allowed_roles=c.allowed_roles,
                 allowed_user_ids=c.allowed_user_ids,
                 created_at=c.created_at,
-                updated_at=c.updated_at,
             )
         )
     return result

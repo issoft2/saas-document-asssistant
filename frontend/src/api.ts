@@ -76,7 +76,8 @@ export interface ListDriveFilesParams {
 export interface IngestDriveFilePayload {
   fileId: string
   collectionName: string
-  title: string
+  title: string,
+  tenant_id: string
 }
 
 export interface OrganizationOut {
@@ -219,11 +220,14 @@ export function uploadDocument({
   title,
   file,
   doc_id,
+  tenant_id,
 }: UploadDocumentPayload) {
   const formData = new FormData()
   formData.append('collection_name', collectionName)
+  formData.append('tenant_id', tenant_id)
   if (title) formData.append('title', title)
   if (doc_id) formData.append('doc_id', doc_id)
+
   formData.append('file', file)
 
   return api.post('/documents/upload', formData, {
@@ -318,6 +322,7 @@ export function ingestDriveFile(payload: IngestDriveFilePayload) {
     file_id: payload.fileId,
     collection_name: payload.collectionName,
     title: payload.title,
+    tenant_id: payload.tenant_id
   })
 }
 

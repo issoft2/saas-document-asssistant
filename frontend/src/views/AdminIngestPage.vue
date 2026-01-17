@@ -858,6 +858,7 @@ async function ingestSelectedDriveFiles() {
         fileId: fileObj.id,
         collectionName: activeCollectionName.value,
         title: fileObj.name,
+        tenant_id: tenantId.value
       })
 
       ingestStatusById.value = {

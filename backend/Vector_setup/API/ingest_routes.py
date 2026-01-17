@@ -442,7 +442,7 @@ async def upload_document(
     return result
 
 
-@router.get("/collections", response_model=List[CollectionOut])
+@router.get("/collections/old", response_model=List[CollectionOut])
 def list_collections_for_current_user(
     db: Session = Depends(get_db),
     current_user: DBUser = Depends(get_current_db_user),
@@ -472,7 +472,6 @@ def list_collections_for_current_user(
                 allowed_roles=c.allowed_roles,
                 allowed_user_ids=c.allowed_user_ids,
                 created_at=c.created_at,
-                updated_at=c.updated_at,
             )
         )
 

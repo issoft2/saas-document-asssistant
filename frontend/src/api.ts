@@ -205,6 +205,10 @@ export function toggleCompanyUserActive(userId: string) {
   return api.post(`/company/users/${userId}/toggle-active`)
 }
 
+export function listOrgTenantUsers() {
+  return api.get('/organizations/users')
+}
+
 // ---- Documents ----
 export function uploadDocument({
   collectionName,

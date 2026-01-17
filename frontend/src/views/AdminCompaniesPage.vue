@@ -811,7 +811,7 @@ const canManageOrgs = computed(() => isVendor.value || isGroupAdmin.value,
 
 // access to collection
 function openCollectionAccessModal(company, org, col) {
-  if (!canManageUsersForTenant(Company.tenant_id)) return
+  if (!canManageUsersForTenant(company.tenant_id)) return
 
   accessTenantId.value = company.tenant_id
   accessOrgId.value = org.id

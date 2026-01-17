@@ -130,7 +130,6 @@ def create_collection(
         allowed_roles=db_collection.allowed_roles,
         allowed_user_ids=db_collection.allowed_user_ids,
         created_at=db_collection.created_at,
-        updated_at=db_collection.updated_at,
     )
 
 

@@ -18,7 +18,6 @@ class CollectionOut(BaseModel):
     allowed_user_ids: Optional[List[str]] = None
 
     created_at: datetime
-    updated_at: datetime
 
 
 class CompanyOut(BaseModel):

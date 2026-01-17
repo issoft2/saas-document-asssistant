@@ -569,6 +569,8 @@ const uploadMessage = ref('')
 const uploadError = ref('')
 
 const fileInput = ref<HTMLInputElement | null>(null)
+tenantIdStr.value = String(currentTenantId.value)
+
 
 // Load collections for current org (/collections/by-org)
 async function loadCollectionsForOrg() {
@@ -670,8 +672,6 @@ async function onUpload() {
 
   uploadLoading.value = true
   try {
-    console.log('currentTenantId in onUpload:', currentTenantId.value)
-    tenantIdStr.value = String(currentTenantId.value)
     await uploadDocument({
       collectionName: name,
       title: docTitle.value,
@@ -861,7 +861,7 @@ async function ingestSelectedDriveFiles() {
         fileId: fileObj.id,
         collectionName: activeCollectionName.value,
         title: fileObj.name,
-        tenant_id: ,
+        tenant_id: tenantIdStr.value,
       })
 
       ingestStatusById.value = {

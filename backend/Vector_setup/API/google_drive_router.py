@@ -393,7 +393,7 @@ async def ingest_drive_file(
     db: Session = Depends(get_db),
     store: MultiTenantChromaStoreManager = Depends(get_store),
     current_user: DBUser = Depends(require_tenant_admin),
-    tenant: Tenant = Depends(ensure_tenant_active)
+    # tenant: Tenant = Depends(ensure_tenant_active)
 
 ):
     """

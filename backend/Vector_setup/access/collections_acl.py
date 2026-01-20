@@ -1,5 +1,5 @@
 from Vector_setup.user.db import DBUser, Collection, CollectionVisibility
-from Vector_setup.user.roles import GROUP_ROLES, SUB_ROLES
+from Vector_setup.user.roles import GROUP_ROLES, SUB_ROLES, SUPER_ROLES
 
 from sqlmodel import Session, select
 from typing import List, Optional  
@@ -63,7 +63,7 @@ def user_can_access_collection(
         return str(user.id) in user_ids
     
     # 4 Highest, Unbrella Company-wide roles
-    if user.role in SUPPER_ROLES:
+    if user.role in SUPER_ROLES:
         # Supper ROLES can see all collections in their tenant
         # It can be tightened late if required
         return True

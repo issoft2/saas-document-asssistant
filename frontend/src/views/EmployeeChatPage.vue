@@ -457,6 +457,7 @@
 </template>
 
 <script setup lang="ts">
+
 import { ref, onMounted, computed, watch } from "vue";
 import { v4 as uuidv4 } from "uuid";
 import { listConversations, getConversation, deleteConversation } from "../api";
@@ -650,6 +651,16 @@ async function startNewConversation() {
   question.value = "";
 }
 
+watch(streamStatus, (val) => {
+  if (!val) return;
+  if (
+    val.startsWith("You don't have access") ||
+    val.startsWith("You don't have permission")
+  ) {
+    error.value = val;
+  }
+});
+
 // ----- Streaming integration -----
 watch(streamedAnswer, (val) => {
   const lastMsg = messages.value[messages.value.length - 1];
@@ -746,6 +757,8 @@ async function onDeleteConversation(convId: string) {
     error.value = e?.response?.data?.detail || "Failed to delete conversation.";
   }
 }
+
+
 </script>
 
 <style scoped>

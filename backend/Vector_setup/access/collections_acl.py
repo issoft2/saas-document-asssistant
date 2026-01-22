@@ -54,21 +54,8 @@ def user_can_access_collection(
     user: DBUser,
     collection: Collection,
 ) -> bool:
-    logger.info(
-        "DEBUG user properties use can process collection"
-        "user_id=%s role=%s org=%s collection_id=%s name=%s visibility=%s coll_org=%s "
-        "allowed_roles=%s allowed_user_ids=%s",
-        str(user.id),
-        user.role,
-        user.organization_id,
-        str(collection.id),
-        collection.name,
-        str(collection.visibility),
-        collection.organization_id,
-        _to_list(collection.allowed_roles),
-        _to_list(collection.allowed_user_ids),
-    )
-    # 1) Tenant isolation (hard gate)
+   
+     # 1) Tenant isolation (hard gate)
     if collection.tenant_id != user.tenant_id:
         return False
 
@@ -88,7 +75,7 @@ def user_can_access_collection(
 
     # 5) Group roles (org-scoped, role-based, e.g. group_hr, group_admin)
     if user.role in GROUP_ROLES:
-        # Org-scoped: same org + role allowed
+        # Org-scoped: same org + role allowed No ACL check for this user
         if collection.visibility in (CollectionVisibility.org, CollectionVisibility.role):
             return (
                 user.organization_id is not None
@@ -102,48 +89,32 @@ def user_can_access_collection(
 
         # Any other visibility value
         return False
-
+    
+    explicit_acl_allow = str(user.id) in user_ids or user.role in roles
     # 6) Subsidiary / normal users (sub-roles, e.g. sub_hr)
     if user.role in SUB_ROLES:
         # Tenant-wide: only if their role is explicitly allowed
         if collection.visibility == CollectionVisibility.tenant:
-            return user.role in roles
+            # Only via ACL, not automatic
+            return explicit_acl_allow
+        
 
         # Org-scoped or role-scoped collections:
         if collection.visibility in (CollectionVisibility.org, CollectionVisibility.role):
-            # Auto-allow sub_* roles in their own org,
-            # even if not explicitly listed in allowed_roles
+            # First: explicit ACL
+            if explicit_acl_allow:
+                return True
+            
+            # Then: org-wide default for sub_* in their own org
             if (
                 user.organization_id is not None
                 and user.organization_id == collection.organization_id
                 and user.role.startswith("sub_")
             ):
                 return True
-
-            # Fallback to explicit ACL (if you still want it)
-            return (
-                user.organization_id is not None
-                and user.organization_id == collection.organization_id
-                and user.role in roles
-            )
             
-        # DEBUG: log decision
-        logger.info(
-                "DBG user_can_access_collection "
-                f"user_id=%s role=%s org=%s collection_id=%s name=%s visibility=%s coll_org=%s "
-                f"allowed_roles=%s allowed_user_ids=%s result=%s",
-                str(user.id),
-                user.role,
-                user.organization_id,
-                str(collection.id),
-                collection.name,
-                str(collection.visibility),
-                collection.organization_id,
-                _to_list(collection.allowed_roles),
-                _to_list(collection.allowed_user_ids),
-            )
-
-        # Defensive fallback
+            return False
+        
         return False
 
     # 7) Any other / unknown role -> deny by default

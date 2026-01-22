@@ -315,7 +315,7 @@ def get_collection_for_user_or_403(
         .first()
     )
     logger.info(
-        "DEBUG user properties "
+        "DEBUG user properties and roles info "
         "user_id=%s role=%s org=%s collection_id=%s name=%s visibility=%s coll_org=%s "
         "allowed_roles=%s allowed_user_ids=%s",
         str(current_user.id),

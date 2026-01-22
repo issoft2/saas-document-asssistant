@@ -40,6 +40,7 @@ async def get_current_user(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str | None = payload.get("sub")
         tenant_id: str | None = payload.get("tenant_id")
+        organization_id: str | None =  payload.get('organization_id')
         if email is None or tenant_id is None:
             raise credentials_exception
     except JWTError:
@@ -59,6 +60,7 @@ async def get_current_user(
         date_of_birth=user.date_of_birth,
         phone=user.phone,
         role=user.role,
+        organization_id=organization_id,
         )
 
 

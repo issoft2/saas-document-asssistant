@@ -125,7 +125,7 @@
               <span
                 class="px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-300"
               >
-                “Summarise the onboarding handbook for new engineers.”
+                “Summarise the onboarding handbook for new employees.”
               </span>
             </div>
           </div>

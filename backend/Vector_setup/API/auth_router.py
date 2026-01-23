@@ -5,20 +5,24 @@ from sqlmodel import Session, select
 
 
 from Vector_setup.base.auth_models import UserCreate, UserOut, LoginRequestTenant
-from Vector_setup.user.auth_store import create_user, get_user_by_email, login_tenant_request, create_first_login_token
+from Vector_setup.user.auth_store import create_user, get_user_by_email, login_tenant_request, create_first_login_token, get_current_db_user
 from Vector_setup.user.jwt_core import create_access_token, authenticate_user, ACCESS_TOKEN_EXPIRE_MINUTES
-from Vector_setup.user.db import get_db, FirstLoginToken, engine, DBUser, Tenant
-from Vector_setup.user.auth_jwt import get_current_user, get_current_db_user
+from Vector_setup.user.db import get_db, FirstLoginToken, engine, DBUser,Organization, Tenant
 from Vector_setup.services.email_service import send_first_login_email  # your email helper
 from Vector_setup.user.password import verify_password, get_password_hash
+from Vector_setup.schema.schema_signature import UserCreateIn
+
+from Vector_setup.user.roles import USER_CREATOR_ROLES, VENDOR_ROLES
+
+
+
 
 
 import os
 import logging
 from pydantic import BaseModel
-from Vector_setup.user.auth_jwt import ensure_tenant_active
-
-
+from Vector_setup.user.permissions import map_role_to_permissions
+        
 
 logger = logging.getLogger(__name__)
 
@@ -26,47 +30,100 @@ FRONTEND_BASE_URL = os.getenv("FRONTEND_ORIGIN", "https://lexiscope.duckdns.org"
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
 @router.get("/me", response_model=UserOut)
-def read_me(current_user: UserOut = Depends(get_current_user)):
-    return current_user
+def read_me(current_user: DBUser = Depends(get_current_db_user)) -> UserOut:
+    """
+    Return the current user's profile, including tenant, org, and role.
+    """
+    perms = map_role_to_permissions(current_user.role)
+    return UserOut(
+        id=current_user.id,
+        email=current_user.email,
+        tenant_id=current_user.tenant_id,
+        first_name=current_user.first_name,
+        last_name=current_user.last_name,
+        date_of_birth=current_user.date_of_birth,
+        phone=current_user.phone,
+        role=current_user.role,
+        is_active=current_user.is_active,
+        create_at=current_user.created_at,
+        is_online=current_user.is_online,
+        last_login_at=current_user.last_login_at,
+        last_seen_at=current_user.last_seen_at,
+        roles=[current_user.role],
+        permissions=perms,
+        organization_id=current_user.organization_id,
+    )
+
 
 @router.post("/signup", response_model=UserOut)
 def signup(
-    user_in: UserCreate,
+    body: UserCreateIn,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: UserOut = Depends(get_current_user),
-    # tenant: Tenant = Depends(ensure_tenant_active),
+    current_user: DBUser = Depends(get_current_db_user),
 ) -> UserOut:
-     # 1) Block employees completely
-    if current_user.role == "employee":
+    # 1) Only certain roles can create users
+    if current_user.role not in USER_CREATOR_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Employees are not allowed to create users",
+            detail="You are not allowed to create users.",
         )
 
-    # 2) Vendor can create for any tenant; other roles only for their own tenant
-    if current_user.role != "vendor" and user_in.tenant_id != current_user.tenant_id:
+    # 2) Vendor can create for any tenant; others only for their own tenant
+    if current_user.role not in VENDOR_ROLES and body.tenant_id != current_user.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not allowed to create user for this tenant",
         )
 
-    # 3) Check email uniqueness
-    existing = get_user_by_email(user_in.email, user_in.tenant_id, db)
+    # 3) Validate organization for non-vendor users
+    is_vendor_user = body.role in VENDOR_ROLES
+    if not is_vendor_user and body.organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="organization_id is required for non-vendor users",
+        )
+
+    if body.organization_id is not None:
+        org = db.get(Organization, body.organization_id)
+        if not org or org.tenant_id != body.tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid organization_id for this tenant",
+            )
+
+    # 4) Restrict which roles current_user may assign
+    # Example rule: subsidiaries cannot assign group_* roles
+    if current_user.role.startswith("sub_") and body.role.startswith("group_"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Subsidiary admins cannot assign group-level roles",
+        )
+
+    # Optional: prevent assigning vendor role except by vendor or group_admin
+    if body.role in VENDOR_ROLES and current_user.role not in VENDOR_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to assign vendor roles",
+        )
+
+    # 5) Check email uniqueness
+    existing = get_user_by_email(body.email, body.tenant_id, db)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
 
-    # 4) Create user (ensure is_first_login default to True in create_user)
-    user = create_user(user_in, db)
-    
-    # 5) Generate first-time login token
+    # 6) Create user
+    user = create_user(body, db)
+
+    # 7) Generate first-time login token
     raw_token = create_first_login_token(db, user)
-    
-    # 6) Queue email sending
+
+    # 8) Queue email sending
     login_link = f"{FRONTEND_BASE_URL}/first-login?token={raw_token}"
     background_tasks.add_task(
         send_first_login_email,
@@ -75,13 +132,16 @@ def signup(
         tenant_id=user.tenant_id,
         login_link=login_link,
     )
-    
+
     return UserOut(
         id=user.id,
         email=user.email,
         tenant_id=user.tenant_id,
         role=user.role,
+        # add organization_id if present in UserOut
     )
+
+
     
 
 @router.post("/login")

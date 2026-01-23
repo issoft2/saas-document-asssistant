@@ -40,6 +40,7 @@ async def get_current_user(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str | None = payload.get("sub")
         tenant_id: str | None = payload.get("tenant_id")
+        organization_id: str | None =  payload.get('organization_id')
         if email is None or tenant_id is None:
             raise credentials_exception
     except JWTError:
@@ -59,24 +60,45 @@ async def get_current_user(
         date_of_birth=user.date_of_birth,
         phone=user.phone,
         role=user.role,
+        organization_id=organization_id,
         )
 
 
-async def get_current_user_from_header_or_query(
+async def get_current_db_user_from_header_or_query(
     request: Request,
-) -> TokenUser:
-    # 1) Try Authorization header (existing behavior)
+    db: Session = Depends(get_db),
+) -> DBUser:
+    # 1) Try Authorization header
     auth = request.headers.get("Authorization")
+    token: str | None = None
+
     if auth and auth.lower().startswith("bearer "):
         token = auth.split(" ", 1)[1]
-        return get_current_user(token)
 
     # 2) Fallback: token from query param
-    token = request.query_params.get("token")
-    if token:
-        return decode_and_get_user(token)
+    if not token:
+        token = request.query_params.get("token")
 
-    raise HTTPException(status_code=401, detail="Not authenticated")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Decode into your token user model (email, tenant_id, etc.)
+    token_user = decode_and_get_user(token)
+
+    # Load DBUser
+    db_user = (
+        db.query(DBUser)
+        .filter(
+            DBUser.email == token_user.email,
+            DBUser.tenant_id == token_user.tenant_id,
+        )
+        .first()
+    )
+    if not db_user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return db_user
+
 
 def decode_and_get_user(token: str) -> TokenUser:
     """
@@ -156,29 +178,6 @@ def ensure_tenant_active(
     return tenant               
 
 
-async def get_current_db_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
-) -> DBUser:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str | None = payload.get("sub")
-        tenant_id: str | None = payload.get("tenant_id")
-        if email is None or tenant_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-
-    user = get_db_user_by_email(email, tenant_id, db)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user  # this is DBUser
 
 def ensure_tenant_active_by_id(
     tenant_id: str,

@@ -1,8 +1,10 @@
 # db.py
-from sqlmodel import SQLModel, Field, create_engine, Session, UniqueConstraint
-from typing import Optional
+from sqlmodel import SQLModel, Field, create_engine, Session, UniqueConstraint, Column, JSON, Text
+from typing import Optional, Dict, Any
 import os
 from datetime import datetime
+from enum import Enum
+
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/users.db")
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {})
@@ -18,12 +20,33 @@ class Tenant(SQLModel, table=True):
     subscription_status: str = Field(default="trialing") # trialing, active, expired, cancelled
     trial_ends_at: datetime | None = Field(default=None)
     
+class CollectionVisibility(str, Enum):
+    tenant = "tenant" # visible to all users in tenant (subject to role rules)
+    org = "org" # only users in same organization
+    role = "role" # specific roles
+    user = "user" # specific users
+        
+    
 class Collection(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+    id: str = Field(default=None, primary_key=True)
     tenant_id: str = Field(index=True, foreign_key="tenant.id")
-    name: str
+    organization_id: Optional[str] = Field(default=None, index=True) # Fk to Organization.id
+    name: str = Field(index=True)
+    visibility: CollectionVisibility = Field(default=CollectionVisibility.tenant)
+    
+   # Store JSON as TEXT, handle encoding/decoding manually
+    allowed_roles: Optional[str] = Field(
+        sa_column=Column(JSON),
+        default=None,
+    )
+    allowed_user_ids: Optional[str] = Field(
+        sa_column=Column(JSON),
+        default=None,
+    )
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     doc_count: int = Field(default=0)
+    
      
 class DBUser(SQLModel, table=True):
     __tablename__ = "users"
@@ -46,6 +69,7 @@ class DBUser(SQLModel, table=True):
     is_online: bool = Field(default=False, index=True)
     last_login_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
+    organization_id: Optional[str] = Field(default=None, index=True)
     
     __table_args__ = (
         UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
@@ -58,6 +82,8 @@ class ChatMessage(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     tenant_id: str = Field(index=True)
     user_id: str = Field(index=True)
+    organization_id: int | None = Field(default=None, index=True)   
+    collection_id: int | None = Field(default=None, index=True)   
     role: str # "user" or "assistant"
     content: str
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
@@ -107,3 +133,32 @@ def init_db():
 def get_db():
     with Session(engine) as session:
         yield session
+
+    
+class Organization(SQLModel, table=True):
+    __tablename__ = "organizations"
+    
+    id: str = Field(primary_key=True, index=True)
+    tenant_id: str = Field(index=True)
+    name: str = Field(index=True)    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)    
+    
+class AuditLog(SQLModel, table=True):
+     __tablename__ = "audit_logs"
+     
+     id: str = Field(primary_key=True, index=True)
+     tenant_id: str = Field(index=True)
+     user_id: str = Field(index=True)
+     action: str = Field(index=True)
+     resource_type: str = Field(index=True)
+     resource_id: Optional[str] = Field(default=None, index=True)
+     
+     # Small, flexible metadata
+     meta: Optional[Dict[str, Any]] = Field(
+        default=None,
+        sa_column=Column('metadata', JSON, nullable=True),
+    )
+     
+     created: datetime = Field(default_factory=datetime.utcnow)
+        

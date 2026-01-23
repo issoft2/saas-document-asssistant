@@ -143,6 +143,19 @@ POLICY_KEYWORDS = [
 
 # ---------- helpers ----------
 
+
+def create_formatter_prompt(raw_answer: str) -> List[Dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": FORMATTER_SYSTEM_PROMPT,
+        },
+        {
+            "role": "user",
+            "content": raw_answer,
+        },
+    ]
+
 def build_capabilities_message_from_store(store_summary: dict) -> str:
     collections = store_summary.get("collections", [])
     if not collections:
@@ -674,6 +687,23 @@ async def llm_pipeline_stream(
                 full_answer_parts.append(text)
 
         formatted_answer = "".join(full_answer_parts).strip()
+
+        # _store(formatted_answer, unique_sources)
+        # yield formatted_answer
+        
+        try:
+            formatter_messages = create_formatter_prompt(formatted_answer)
+            formatted_resp = await call_llm(
+                messages=formatter_messages,
+                model="gpt-4o-mini",
+                temperature=0.0,
+                max_tokens=1000,
+            )
+            formatted_answer = formatted_resp.choices[0].message.content or formatted_answer
+
+        except Exception as e:
+            logger.warning(f"Formatter failed, returning raw answer: {e}")
+            formatted_answer = formatted_answer
 
         _store(formatted_answer, unique_sources)
         yield formatted_answer

@@ -6,7 +6,10 @@ import Toast from 'primevue/toast'
 import App from './App.vue'
 import router from './router'
 
-import 'primevue/resources/themes/aura-dark-indigo/theme.css' // or your theme
+import 'primevue/resources/themes/lara-dark-indigo/theme.css'
+// or:
+// import 'primevue/resources/themes/lara-light-indigo/theme.css'
+
 import 'primevue/resources/primevue.min.css'
 import 'primeicons/primeicons.css'
 

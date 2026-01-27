@@ -21,8 +21,8 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             cd /srv/company-assistant
-            git pull origin main
-            docker compose pull
-            docker compose up -d --build
+             docker compose -f docker-compose-production.yml pull
+             docker compose -f docker-compose-production.yml up -d
+
 
                    

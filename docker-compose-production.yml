@@ -1,54 +1,41 @@
 services:
   backend:
-    build: ./backend
+    image: ghcr.io/issoft2/company-assistant-backend:latest
     ports:
       - "8000:8000"
     env_file:
-      - .env    
+      - .env
     environment:
       ANONYMIZED_TELEMETRY: "False"
       DATABASE_URL: "sqlite:///./data/users.db"
       HF_HUB_ENABLE_HF_TRANSFER: "False"
-      HF_HUB_DISABLE_XET: "1" 
-      APP_RESET_DATA: "False" 
-      CHROMA_PATH: "/app/chromadb_multi_tenant" 
-      
-      SMTP_HOST: "smtp.gmail.com"
-      SMTP_PORT: "465"
-      SMTP_USER: "specisaac@gmail.com"
-      SMTP_PASSWORD: "yqnvexohafifwksv"
-      SMTP_FROM_NAME: "issoft"
-      SMTP_USE_SSL: "true"
+      HF_HUB_DISABLE_XET: "1"
+      APP_RESET_DATA: "False"
+      CHROMA_PATH: "/app/chromadb_multi_tenant"
     volumes:
       - chroma_data:/app/chromadb_multi_tenant
       - ./data:/app/data
-
     restart: unless-stopped
     networks:
       - app_net
 
   frontend:
-    build: ./frontend
+    image: ghcr.io/issoft2/company-assistant-frontend:latest
     container_name: frontend
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /etc/letsencrypt/live/lexiscope.duckdns.org:/etc/letsencrypt/live/lexiscope.duckdns.org:ro
-      - /etc/letsencrypt/archive/lexiscope.duckdns.org:/etc/letsencrypt/archive/lexiscope.duckdns.org:ro 
-      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro  
-
-    # depends_on:
-    #   - backend
-    # NO GPU - web static files
+      - /etc/letsencrypt/archive/lexiscope.duckdns.org:/etc/letsencrypt/archive/lexiscope.duckdns.org:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
     networks:
       - app_net
-
 
 volumes:
   chroma_data:
 
 networks:
   app_net:
-    driver: bridge  
+    driver: bridge

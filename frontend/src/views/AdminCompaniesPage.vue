@@ -1,716 +1,178 @@
 <template>
-  <div class="space-y-6 max-w-6xl mx-auto py-6">
+  <div class="max-w-7xl mx-auto py-6 px-4 space-y-6">
     <!-- Header -->
-    <header class="flex flex-wrap items-center justify-between gap-3">
+    <header class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-semibold text-slate-900">
-          Companies & Hierarchy
+          Company Administration
         </h1>
         <p class="text-sm text-slate-500">
-          Manage tenants, organizations, collections, and users in a tenant-first flow.
+          Manage organizations, collections, users, and access.
         </p>
       </div>
-      <button class="btn-primary" @click="loadCompanies" :disabled="loading">
-        <span v-if="!loading">Refresh</span>
-        <span v-else>Refreshing…</span>
-      </button>
+
+      <!-- Tenant selector -->
+      <div class="flex items-center gap-3">
+        <select
+          v-model="activeTenantId"
+          class="rounded-lg border px-3 py-2 text-sm bg-white"
+        >
+          <option disabled value="">Select tenant</option>
+          <option
+            v-for="c in companies"
+            :key="c.tenant_id"
+            :value="c.tenant_id"
+          >
+            {{ c.display_name || c.tenant_id }}
+          </option>
+        </select>
+
+        <span
+          v-if="activeTenant"
+          class="text-xs px-2 py-1 rounded-full"
+          :class="statusBadgeClass(activeTenant.subscription_status)"
+        >
+          {{ activeTenant.subscription_status }}
+        </span>
+      </div>
     </header>
 
-    <!-- Companies table -->
-    <section class="bg-white border rounded-xl shadow-sm overflow-hidden">
-      <div class="border-b px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold text-slate-900">Companies</span>
-          <span class="text-[11px] text-slate-500">
-            {{ companies.length }} total
-          </span>
+    <!-- Empty state -->
+    <div
+      v-if="!activeTenant"
+      class="border rounded-xl bg-white p-8 text-center text-slate-500"
+    >
+      Select a tenant to begin managing organizations and access.
+    </div>
+
+    <!-- Main layout -->
+    <div
+      v-else
+      class="grid grid-cols-1 md:grid-cols-12 gap-6"
+    >
+      <!-- Left: hierarchy -->
+      <aside class="md:col-span-4 bg-white border rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-900">
+            Organizations
+          </h2>
+          <button
+            class="text-xs text-sky-600 hover:underline"
+            @click="openOrganizationsModal(activeTenant)"
+          >
+            + Add
+          </button>
         </div>
-        <div class="text-[11px] text-slate-400" v-if="lastLoadedAt">
-          Last updated: {{ lastLoadedAt }}
-        </div>
-      </div>
 
-      <div v-if="error" class="px-4 py-3 text-xs text-red-600">
-        {{ error }}
-      </div>
-
-      <div
-        v-if="!companies.length && !loading && !error"
-        class="px-4 py-6 text-sm text-slate-500"
-      >
-        No companies found yet. Vendor can create tenants on the Ingestion page.
-      </div>
-
-      <div class="overflow-x-auto" v-if="companies.length">
-        <table class="min-w-full divide-y divide-slate-200 text-sm table-auto">
-          <thead class="bg-slate-50">
-            <tr>
-              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Company / Tenant
-              </th>
-              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Plan & status
-              </th>
-              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Organizations & collections
-              </th>
-              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 bg-white">
-            <tr
-              v-for="company in companies"
-              :key="company.tenant_id"
-              class="hover:bg-slate-50 align-top"
-            >
-              <!-- Company -->
-              <td class="px-4 py-3">
-                <div class="font-medium text-slate-900">
-                  {{ company.display_name || company.tenant_id }}
-                </div>
-                <div class="text-xs text-slate-500">
-                  ID: {{ company.tenant_id }}
-                </div>
-                <div class="text-[11px] text-slate-400 mt-1">
-                  Created: {{ formatDate(company.created_at) }}
-                </div>
-              </td>
-
-              <!-- Plan & status -->
-              <td class="px-4 py-3 text-xs space-y-1">
-                <div
-                  class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
-                  :class="planBadgeClass(company.plan)"
-                >
-                  {{ company.plan || '—' }}
-                </div>
-                <div
-                  class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
-                  :class="statusBadgeClass(company.subscription_status)"
-                >
-                  {{ company.subscription_status || 'unknown' }}
-                </div>
-                <div class="text-[11px] text-slate-500" v-if="company.trial_ends_at">
-                  Trial ends: {{ formatDate(company.trial_ends_at) }}
-                </div>
-              </td>
-
-              <!-- Organizations & collections -->
-              <td class="px-4 py-3">
-                <div
-                  v-if="company.organizations && company.organizations.length"
-                  class="space-y-2"
-                >
-                  <div
-                    v-for="org in company.organizations"
-                    :key="org.id"
-                    class="border border-slate-100 rounded-md px-2 py-1.5"
-                  >
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="text-xs font-semibold text-slate-800">
-                        {{ org.name }}
-                      </div>
-                      <div class="text-[10px] text-slate-500">
-                        {{ collectionsForOrg(company, org.id).length }} collections
-                      </div>
-                    </div>
-
-                    <div class="mt-1">
-                      <div
-                        v-if="collectionsForOrg(company, org.id).length"
-                        class="space-y-0.5"
-                      >
-                        <div
-                          v-for="col in collectionsForOrg(company, org.id)"
-                          :key="col.id || col.collection_name || col.name"
-                          class="flex items-center justify-between gap-2"
-                        >
-                          <div class="text-[11px] text-slate-800">
-                            {{ col.name || col.collection_name }}
-                          </div>
-                          <span class="text-[10px] text-slate-500">
-                            {{ col.doc_count ?? 0 }} docs
-                          </span>
-                          <button
-                            v-if="canManageUsersForTenant(company.tenant_id)"
-                            class="text-[10px] text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-1 rounded hover:underline"
-                            @click="openCollectionAccessModal(company, org, col)"
-                          >
-                            Manage access
-                          </button>
-                        </div>
-                      </div>
-                      <div
-                        v-else
-                        class="text-[11px] text-slate-400"
-                      >
-                        No collections yet for this organization.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div v-else class="text-xs text-slate-400">
-                  No organizations defined yet.
-                </div>
-              </td>
-
-              <!-- Actions -->
-              <td class="px-4 py-3 space-y-2">
-                <button
-                  class="btn-primary text-[11px] w-full"
-                  @click="loadCollectionsAndOrgs(company.tenant_id)"
-                  :disabled="loadingCollections === company.tenant_id"
-                >
-                  <span v-if="loadingCollections !== company.tenant_id">
-                    Load orgs & collections
-                  </span>
-                  <span v-else>Loading…</span>
-                </button>
-
-                <button
-                  v-if="canManageOrgsForTenant(company.tenant_id)"
-                  class="btn-primary text-[11px] w-full"
-                  @click="openOrganizationsModal(company)"
-                >
-                  Manage organizations
-                </button>
-
-                <button
-                  v-if="canUploadToTenant(company.tenant_id)"
-                  class="btn-primary text-[11px] w-full"
-                  @click="openCollectionModal(company)"
-                  :disabled="!company.organizations || !company.organizations.length"
-                >
-                  Add collection
-                </button>
-                <p
-                  v-if="canUploadToTenant(company.tenant_id) && (!company.organizations || !company.organizations.length)"
-                  class="text-[11px] text-slate-500"
-                >
-                  Create an organization first.
-                </p>
-
-                <button
-                  v-if="canManageUsersForTenant(company.tenant_id)"
-                  class="btn-primary text-[11px] w-full"
-                  @click="openUserModal(company)"
-                  :disabled="!company.organizations || !company.organizations.length"
-                >
-                  Add user
-                </button>
-                <p
-                  v-if="canManageUsersForTenant(company.tenant_id) && (!company.organizations || !company.organizations.length)"
-                  class="text-[11px] text-slate-500"
-                >
-                  Create an organization to assign the user to.
-                </p>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div v-if="loading" class="px-4 py-3 text-xs text-slate-500">
-        Loading companies…
-      </div>
-    </section>
-
-    <!-- Organizations modal -->
-    <transition name="fade">
-      <div
-        v-if="showOrgsModal"
-        class="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
-      >
-        <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 p-4 md:p-5 space-y-4">
-          <header class="flex items-center justify-between gap-3">
-            <div>
-              <h2 class="text-sm font-semibold text-slate-900">
-                Organizations for {{ orgTenantId }}
-              </h2>
-              <p class="text-[11px] text-slate-500">
-                Create umbrella or subsidiary organizations under this tenant.
-              </p>
-            </div>
+        <ul class="space-y-2">
+          <li
+            v-for="org in activeTenant.organizations"
+            :key="org.id"
+            class="border rounded-lg p-2"
+          >
             <button
-              type="button"
-              class="text-xs text-slate-500 hover:text-slate-700"
-              @click="closeOrganizationsModal"
+              class="w-full text-left text-sm font-medium text-slate-800"
+              @click="selectOrg(org)"
             >
-              Close
+              {{ org.name }}
             </button>
-          </header>
 
-          <div class="space-y-1 max-h-40 overflow-auto">
-            <p
-              v-if="!orgsForTenant.length"
-              class="text-[11px] text-slate-400"
+            <ul
+              v-if="selectedOrg?.id === org.id"
+              class="mt-2 pl-3 space-y-1"
             >
-              No organizations yet. Create one below.
-            </p>
-            <ul v-else class="space-y-1">
               <li
-                v-for="org in orgsForTenant"
-                :key="org.id"
-                class="flex items-center justify-between px-2 py-1 rounded-md bg-slate-50"
+                v-for="col in collectionsForOrg(activeTenant, org.id)"
+                :key="col.id"
               >
-                <span class="text-[11px] text-slate-800">
-                  {{ org.name }}
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          <form class="space-y-3" @submit.prevent="onCreateOrganizationForTenant">
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Organization name
-              </label>
-              <input
-                v-model="orgName"
-                type="text"
-                class="w-full rounded-lg border px-3 py-2 text-sm"
-                placeholder="e.g. Helium Group, Lagos Clinic"
-                required
-              />
-            </div>
-            <div class="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-lg border text-slate-600"
-                @click="closeOrganizationsModal"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                class="btn-primary text-[11px]"
-                :disabled="orgSaving || !orgTenantId"
-              >
-                <span v-if="!orgSaving">Create organization</span>
-                <span v-else>Creating…</span>
-              </button>
-            </div>
-          </form>
-
-          <p v-if="orgMessage" class="text-xs text-emerald-600">
-            {{ orgMessage }}
-          </p>
-          <p v-if="orgError" class="text-xs text-red-600">
-            {{ orgError }}
-          </p>
-        </div>
-      </div>
-    </transition>
-
-    <!-- Collection modal -->
-    <transition name="fade">
-      <div
-        v-if="showCollectionModal"
-        class="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
-      >
-        <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 p-4 md:p-5 space-y-4">
-          <header class="flex items-center justify-between gap-3">
-            <div>
-              <h2 class="text-sm font-semibold text-slate-900">
-                Add collection
-              </h2>
-              <p class="text-xs text-slate-500" v-if="collectionTenantId">
-                Tenant: <span class="font-semibold">{{ collectionTenantId }}</span>
-              </p>
-            </div>
-            <button
-              type="button"
-              class="text-xs text-slate-500 hover:text-slate-700"
-              @click="closeCollectionModal"
-            >
-              Close
-            </button>
-          </header>
-
-          <form class="space-y-3" @submit.prevent="onCreateCollectionForOrg">
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Organization
-              </label>
-              <select
-                v-model="collectionOrgId"
-                class="w-full rounded-lg border px-3 py-2 text-sm bg-white"
-                required
-              >
-                <option disabled value="">Select organization</option>
-                <option
-                  v-for="org in organizationsForCollectionTenant"
-                  :key="org.id"
-                  :value="String(org.id)"
-                >
-                  {{ org.name }}
-                </option>
-              </select>
-            </div>
-
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Collection name
-              </label>
-              <input
-                v-model="collectionName"
-                type="text"
-                class="w-full rounded-lg border px-3 py-2 text-sm"
-                placeholder="e.g. hr_policies"
-                required
-              />
-            </div>
-
-            <div class="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-lg border text-slate-600"
-                @click="closeCollectionModal"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                class="btn-primary text-[11px]"
-                :disabled="collectionLoading || !collectionTenantId || !collectionOrgId"
-              >
-                <span v-if="!collectionLoading">Create collection</span>
-                <span v-else>Creating…</span>
-              </button>
-            </div>
-          </form>
-
-          <p v-if="collectionMessage" class="text-xs text-emerald-600">
-            {{ collectionMessage }}
-          </p>
-          <p v-if="collectionError" class="text-xs text-red-600">
-            {{ collectionError }}
-          </p>
-        </div>
-      </div>
-    </transition>
-
-    <!-- Add roles and access to Collection -->
-    <!-- Collection access modal -->
-      
-    <transition name="fade">
-      <div
-        v-if="showCollectionAccessModal"
-        class="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
-      >
-        <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 p-4 md:p-5 space-y-4">
-          <header class="flex items-center justify-between gap-3">
-            <div>
-              <h2 class="text-sm font-semibold text-slate-900">
-                Collection access
-              </h2>
-              <p class="text-[11px] text-slate-500" v-if="accessCollection">
-                {{ accessCollection.name || accessCollection.collection_name }}
-              </p>
-            </div>
-            <button
-              type="button"
-              class="text-xs text-slate-500 hover:text-slate-700"
-              @click="closeCollectionAccessModal"
-            >
-              Close
-            </button>
-          </header>
-
-          <div v-if="accessLoading" class="text-xs text-slate-500">
-            Loading users and access…
-          </div>
-
-          <div v-else class="space-y-3">
-            <!-- Users -->
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Users with access
-              </label>
-              <select
-                v-model="accessSelectedUserIds"
-                multiple
-                class="w-full rounded-lg border px-3 py-2 text-sm bg-white h-32"
-              >
-                <option
-                  v-for="u in accessUsersForOrgTenant"
-                  :key="u.id"
-                  :value="String(u.id)"
-                >
-                  {{ u.email }} ({{ u.role }})
-                </option>
-              </select>
-              <p class="text-[11px] text-slate-500">
-                Selected users will be able to query this collection.
-              </p>
-            </div>
-
-            <!-- Roles -->
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Roles with access
-              </label>
-              <select
-                v-model="accessSelectedRoles"
-                multiple
-                class="w-full rounded-lg border px-3 py-2 text-sm bg-white h-24"
-              >
-                <option
-                  v-for="role in allAssignableRoles"
-                  :key="role"
-                  :value="role"
-                >
-                  {{ role }}
-                </option>
-              </select>
-              <p class="text-[11px] text-slate-500">
-                Users with any of these roles will also be able to query this collection.
-              </p>
-            </div>
-
-            <p
-              v-if="accessValidationError"
-              class="text-[11px] text-red-600"
-            >
-              At least one user or one role must be selected.
-            </p>
-
-            <div class="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-lg border text-slate-600"
-                @click="closeCollectionAccessModal"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="btn-primary text-[11px]"
-                :disabled="accessLoading || !accessCollection"
-                @click="saveCollectionAccess"
-              >
-                Save access
-              </button>
-            </div>
-
-            <p v-if="accessMessage" class="text-xs text-emerald-600">
-              {{ accessMessage }}
-            </p>
-            <p v-if="accessError" class="text-xs text-red-600">
-              {{ accessError }}
-            </p>
-          </div>
-        </div>
-      </div>
-    </transition>
-
-
-
-    <!-- User modal (org + optional collection) -->
-    <transition name="fade">
-      <div
-        v-if="showUserModal"
-        class="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
-      >
-        <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4 p-4 md:p-5 space-y-4">
-          <header class="flex items-center justify-between gap-3">
-            <div>
-              <h2 class="text-sm font-semibold text-slate-900">
-                Add user
-              </h2>
-              <p class="text-xs text-slate-500" v-if="userTenantId">
-                Tenant: <span class="font-semibold">{{ userTenantId }}</span>
-              </p>
-            </div>
-            <button
-              type="button"
-              class="text-xs text-slate-500 hover:text-slate-700"
-              @click="closeUserModal"
-            >
-              Close
-            </button>
-          </header>
-
-          <form class="space-y-3" @submit.prevent="onCreateUser">
-            <!-- Org selection -->
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Organization
-              </label>
-              <select
-                v-model="userOrganizationId"
-                class="w-full rounded-lg border px-3 py-2 text-sm bg-white"
-                required
-              >
-                <option disabled value="">Select organization</option>
-                <option
-                  v-for="org in organizationsForUserTenant"
-                  :key="org.id"
-                  :value="String(org.id)"
-                >
-                  {{ org.name }} 
-                </option>
-              </select>
-            </div>
-
-            <!-- Collection selection (optional, scoped to org) -->
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Collection (optional)
-              </label>
-              <select
-                v-model="userCollectionName"
-                class="w-full rounded-lg border px-3 py-2 text-sm bg-white"
-              >
-                <option value="">No specific collection</option>
-                <option
-                  v-for="col in collectionsForUserOrg"
-                  :key="col.id || col.collection_name || col.name"
-                  :value="col.name || col.collection_name"
+                <button
+                  class="text-xs text-slate-600 hover:text-slate-900"
+                  @click="selectCollection(col)"
                 >
                   {{ col.name || col.collection_name }}
-                </option>
-              </select>
-              <p class="text-[11px] text-slate-500">
-                If selected, this user will be scoped to this collection in addition to the organization.
-              </p>
-            </div>
+                </button>
+              </li>
 
-            <!-- Names -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="space-y-1">
-                <label class="block text-xs font-medium text-slate-700">
-                  First name
-                </label>
-                <input
-                  v-model="userFirstName"
-                  type="text"
-                  class="w-full rounded-lg border px-3 py-2 text-sm"
-                  required
-                />
-              </div>
-              <div class="space-y-1">
-                <label class="block text-xs font-medium text-slate-700">
-                  Last name
-                </label>
-                <input
-                  v-model="userLastName"
-                  type="text"
-                  class="w-full rounded-lg border px-3 py-2 text-sm"
-                  required
-                />
-              </div>
-            </div>
+              <li>
+                <button
+                  class="text-xs text-sky-600 hover:underline"
+                  @click="openCollectionModal(activeTenant)"
+                >
+                  + Add collection
+                </button>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </aside>
 
-            <!-- DOB / phone -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="space-y-1">
-                <label class="block text-xs font-medium text-slate-700">
-                  Date of birth
-                </label>
-                <input
-                  v-model="userDob"
-                  type="date"
-                  class="w-full rounded-lg border px-3 py-2 text-sm"
-                />
-              </div>
-              <div class="space-y-1">
-                <label class="block text-xs font-medium text-slate-700">
-                  Phone number
-                </label>
-                <input
-                  v-model="userPhone"
-                  type="tel"
-                  class="w-full rounded-lg border px-3 py-2 text-sm"
-                  placeholder="+234 801 234 5678"
-                />
-              </div>
-            </div>
-
-            <!-- Email / password -->
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Email
-              </label>
-              <input
-                v-model="userEmail"
-                type="email"
-                class="w-full rounded-lg border px-3 py-2 text-sm"
-                required
-              />
-            </div>
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                Password
-              </label>
-              <input
-                v-model="userPassword"
-                type="password"
-                class="w-full rounded-lg border px-3 py-2 text-sm"
-                required
-              />
-            </div>
-
-            <!-- Role -->
-            <div class="space-y-1">
-              <label class="block text-xs font-medium text-slate-700">
-                User role
-              </label>
-              <select
-                v-model="userRole"
-                class="w-full rounded-lg border px-3 py-2 text-sm bg-white"
-                required
-              >
-                <option disabled value="">Select role</option>
-                <option value="employee">Employee</option>
-                <option value="sub_hr">Subsidiary HR</option>
-                <option value="sub_finance">Subsidiary Finance</option>
-                <option value="sub_operations">Subsidiary Operations</option>
-                <option value="sub_md">Subsidiary MD</option>
-                <option value="sub_admin">Subsidiary Admin</option>
-                <option value="group_hr">Group HR</option>
-                <option value="group_finance">Group Finance</option>
-                <option value="group_operation">Group Operations</option>
-                <option value="group_production">Group Production</option>
-                <option value="group_marketing">Group Marketing</option>
-                <option value="group_legal">Group Legal</option>
-                <option value="group_exe">Group Executive</option>
-                <option value="group_admin">Group Admin</option>
-              </select>
-            </div>
-
-            <div class="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                class="text-xs px-3 py-2 rounded-lg border text-slate-600"
-                @click="closeUserModal"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                class="btn-primary text-[11px]"
-                :disabled="userLoading || !userTenantId || !userOrganizationId"
-              >
-                <span v-if="!userLoading">Create user</span>
-                <span v-else>Creating…</span>
-              </button>
-            </div>
-          </form>
-
-          <p v-if="userMessage" class="text-xs text-emerald-600">
-            {{ userMessage }}
+      <!-- Right: context panel -->
+      <section class="md:col-span-8 bg-white border rounded-xl p-6">
+        <!-- Tenant context -->
+        <div v-if="!selectedOrg">
+          <h2 class="text-lg font-semibold text-slate-900">
+            {{ activeTenant.display_name }}
+          </h2>
+          <p class="text-sm text-slate-500 mt-1">
+            Tenant overview and high-level actions.
           </p>
-          <p v-if="userError" class="text-xs text-red-600">
-            {{ userError }}
-          </p>
+
+          <div class="mt-6 flex gap-3">
+            <button
+              class="btn-primary text-sm"
+              @click="openUserModal(activeTenant)"
+            >
+              Add user
+            </button>
+          </div>
         </div>
-      </div>
-    </transition>
+
+        <!-- Organization context -->
+        <div v-else-if="selectedOrg && !selectedCollection">
+          <h2 class="text-lg font-semibold text-slate-900">
+            {{ selectedOrg.name }}
+          </h2>
+          <p class="text-sm text-slate-500 mt-1">
+            Manage users and collections for this organization.
+          </p>
+
+          <div class="mt-6 flex gap-3">
+            <button
+              class="btn-primary text-sm"
+              @click="openUserModal(activeTenant)"
+            >
+              Add user
+            </button>
+          </div>
+        </div>
+
+        <!-- Collection context -->
+        <div v-else>
+          <h2 class="text-lg font-semibold text-slate-900">
+            {{ selectedCollection.name || selectedCollection.collection_name }}
+          </h2>
+          <p class="text-sm text-slate-500 mt-1">
+            Control who can access this collection.
+          </p>
+
+          <div class="mt-6">
+            <button
+              class="btn-primary text-sm"
+              @click="openCollectionAccessModal(
+                activeTenant,
+                selectedOrg,
+                selectedCollection
+              )"
+            >
+              Manage access
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
+
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'

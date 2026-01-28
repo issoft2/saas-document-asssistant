@@ -19,7 +19,7 @@ jobs:
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
-        env:
+        envs:
           BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
         with:

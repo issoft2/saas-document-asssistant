@@ -6,12 +6,12 @@ on:
 
 permissions:
   contents: read
-  # Add packages:read for GHCR
   packages: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repo
@@ -19,9 +19,8 @@ jobs:
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
-        envs:
+        env:
           BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
-          GHCR_PAT: ${{ secrets.GHCR_PAT }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -29,33 +28,38 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
+            echo "🚀 Deploying as $(whoami) at $(date)"
             
-            # Ensure directories
+            # Create directories
             mkdir -p /srv/company-assistant/backend
             
-            # Fix Docker Compose .env lookup issue
-            touch /srv/company-assistant/.env
-            
-            # Write backend .env from secret
+            # Write production .env
             echo "$BACKEND_ENV" > /srv/company-assistant/backend/.env
+            chmod 600 /srv/company-assistant/backend/.env
             
-            cd /srv/company-assistant || { echo "Project dir missing"; exit 1; }
+            cd /srv/company-assistant || { echo "❌ Project dir missing"; exit 1; }
             
-            # NON-INTERACTIVE GHCR login (this fixes your error)
-            echo "$GHCR_PAT" | docker login ghcr.io --username issoft2 --password-stdin
+            # Docker Hub pull (your working build action)
+            docker pull issoft2/company-assistant-backend:latest
             
-            # Pull backend image
-            docker pull ghcr.io/issoft2/company-assistant-backend:latest
+            # Ensure compose file exists
+            if [ ! -f docker-compose-production.yml ]; then
+              echo "❌ docker-compose-production.yml missing"
+              exit 1
+            fi
             
-            # Deploy (docker-compose.yml should use env_file: ./backend/.env)
+            # Zero-downtime deploy
+            docker compose -f docker-compose-production.yml pull
             docker compose -f docker-compose-production.yml up -d --remove-orphans
             
             # Health check
             sleep 10
-            if ! docker compose -f docker-compose-production.yml ps | grep Up; then
-              echo "Services failed to start"
-              docker compose -f docker-compose-production.yml logs
+            if ! docker compose -f docker-compose-production.yml ps | grep "Up"; then
+              echo "❌ Services failed:"
+              docker compose -f docker-compose-production.yml logs --tail=50
               exit 1
             fi
             
-            
+            echo "🎉 DEPLOYMENT SUCCESSFUL!"
+            echo "🌐 Live at: http://${HOSTNAME}:8000"
+            docker compose -f docker-compose-production.yml ps

@@ -20,8 +20,9 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
+            echo "${{ secrets.BACKEND_ENV }}" > /srv/company-assistant/backend/.env
             cd /srv/company-assistant
-            docker compose -f docker-compose-production.yml pull
+            docker compose -f docker-compose-production.yml pull backend
             docker compose -f docker-compose-production.yml up -d --remove-orphans
 
 

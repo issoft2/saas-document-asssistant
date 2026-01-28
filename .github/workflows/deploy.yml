@@ -26,34 +26,20 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
-            
+
             # Ensure backend folder exists
             mkdir -p /srv/company-assistant/backend
-            
-            # Create DUMMY .env in project root (stops Docker Compose default lookup error)
-            touch /srv/company-assistant/.env
-            
-            # Write REAL .env from GitHub secret to backend dir
+
+            # Write .env from GitHub secret
             echo "$BACKEND_ENV" > /srv/company-assistant/backend/.env
-            
-            # Verify .env was created
-            [ -f /srv/company-assistant/backend/.env ] || { echo "ERROR: backend/.env not created"; exit 1; }
-            
+
             # Go to project folder
-            cd /srv/company-assistant || { echo "Project dir missing"; exit 1; }
-            
-            # Pull backend image only (frontend is static)
-            docker compose -f docker-compose-production.yml --env-file ./backend/.env pull backend
-            
-            # Start all services (backend + nginx), remove orphans
-            docker compose -f docker-compose-production.yml --env-file ./backend/.env up -d --remove-orphans
-            
-            # Health check - wait and verify backend is running
-            sleep 10
-            if ! docker compose -f docker-compose-production.yml --env-file ./backend/.env ps backend | grep "Up"; then
-              echo "ERROR: Backend service not healthy"
-              docker compose -f docker-compose-production.yml --env-file ./backend/.env logs backend
-              exit 1
-            fi
-            
-            echo "✅ Deploy successful! Backend is running."
+            cd /srv/company-assistant
+
+            # Pull latest backend image only
+            docker pull ghcr.io/issoft2/company-assistant-backend:latest
+
+            # Start all services using docker compose
+            docker compose -f docker-compose-production.yml up -d --remove-orphans
+
+            echo "✅ Deploy successful!"

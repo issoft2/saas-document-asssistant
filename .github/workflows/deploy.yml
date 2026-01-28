@@ -37,11 +37,14 @@ jobs:
             chmod 600 /srv/company-assistant/backend/.env
             echo "✅ Environment configured"
             
-            # Switch to project directory
             cd /srv/company-assistant || { echo "❌ Project dir missing"; exit 1; }
             
-            # CREATE docker-compose-production.yml (was missing!)
-            cat > docker-compose-production.yml << 'EOF'
+            # Pull latest image FIRST
+            docker pull specisaac/company-assistant-backend:latest
+            echo "✅ Latest image pulled"
+            
+            # CREATE & USE docker-compose-production.yml WITH -f FLAG
+            cat > docker-compose.yml << 'EOF'
             services:
               backend:
                 image: specisaac/company-assistant-backend:latest
@@ -52,19 +55,14 @@ jobs:
                 restart: unless-stopped
             EOF
             
-            echo "✅ docker-compose-production.yml created"
+            echo "✅ docker-compose.yml created"
             
-            # Pull latest image (your Docker Hub repo)
-            docker pull specisaac/company-assistant-backend:latest
-            echo "✅ Latest image pulled"
-            
-            # Zero-downtime deployment
-            docker compose pull
+            # Zero-downtime deployment (uses default docker-compose.yml)
             docker compose up -d --remove-orphans
             echo "✅ Services deployed"
             
             # Health check
-            sleep 10
+            sleep 15
             if ! docker compose ps | grep "Up"; then
               echo "❌ Services failed to start:"
               docker compose logs --tail=20

@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: read
-  packages: write  # Still needed for GHCR
+  packages: write
 
 jobs:
   build-backend:
@@ -21,14 +21,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 1. Login to Docker Hub (PRIMARY - hnswlib compiles here)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 2. Login to GHCR (BACKUP)
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -36,17 +34,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3. Build & Push to BOTH registries
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
           tags: |
-            # Docker Hub (PRIMARY - works everywhere)
             ${{ secrets.DOCKERHUB_USERNAME }}/company-assistant-backend:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/company-assistant-backend:${{ github.sha }}
-            
-            # GHCR (BACKUP - if it ever works)
             ghcr.io/issoft2/company-assistant-backend:latest
             ghcr.io/issoft2/company-assistant-backend:${{ github.sha }}

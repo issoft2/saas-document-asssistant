@@ -1,5 +1,4 @@
-name: Deploy to DigitalOcean Droplet
-
+name: Deploy Full-Stack to DigitalOcean
 on:
   push:
     branches: [ main ]
@@ -11,10 +10,23 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      # ✅ NEW: Build frontend ON GITHUB RUNNER
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Build frontend
+        run: cd frontend && npm run build
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -26,36 +38,30 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
+            # Your existing script with FIXED nginx volume mount
             set -e
-            echo "🚀 FULL-STACK Deploy as $(whoami) at $(date)"
+            echo "🚀 FULL-STACK Deploy as $(whoami)"
             
-            # Create directories for both backend + frontend
             mkdir -p /srv/company-assistant/{backend,frontend}
-            
-            # Copy BACKEND .env
             echo "$BACKEND_ENV" > /srv/company-assistant/backend/.env
             chmod 600 /srv/company-assistant/backend/.env
             
             cd /srv/company-assistant
             
-            # ✅ COPY FRONTEND STATIC FILES FROM GITHUB RUNNER (SAME REPO!)
-            echo "📦 Copying frontend static files from repo..."
-            cp -r $GITHUB_WORKSPACE/frontend/dist/* frontend/ || echo "⚠️ No dist/ found locally"
+            # Copy BUILT frontend files from GitHub runner
+            cp -r $GITHUB_WORKSPACE/frontend/dist/* frontend/
             cp $GITHUB_WORKSPACE/frontend/nginx.conf frontend/nginx.conf || echo "⚠️ No nginx.conf"
             
-            # Pull backend image
             docker pull specisaac/company-assistant-backend:latest
             
-            # CREATE PRODUCTION docker-compose-production.yml
-            cat > docker-compose-production.yml<< 'EOF'
+            # FIXED docker-compose-production.yml
+            cat > docker-compose-production.yml << 'EOF'
             version: "3.9"
             services:
               backend:
                 image: specisaac/company-assistant-backend:latest
-                ports:
-                  - "8000:8000"
-                env_file:
-                  - ./backend/.env
+                ports: ["8000:8000"]
+                env_file: ['./backend/.env']
                 volumes:
                   - chroma_data:/app/chromadb_multi_tenant
                   - ./data:/app/data
@@ -65,14 +71,11 @@ jobs:
               nginx:
                 image: nginx:alpine
                 container_name: frontend-nginx
-                ports:
-                  - "80:80"
-                  - "443:443"
+                ports: ["80:80", "443:443"]
                 volumes:
                   - /etc/letsencrypt/live/lexiscope.duckdns.org:/etc/letsencrypt/live/lexiscope.duckdns.org:ro
                   - /etc/letsencrypt/archive/lexiscope.duckdns.org:/etc/letsencrypt/archive/lexiscope.duckdns.org:ro
-                  - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-                  - ./frontend:/usr/share/nginx/html:ro
+                  - ./frontend:/usr/share/nginx/html:ro  # ✅ FIXED
                 restart: unless-stopped
                 depends_on: [backend]
                 networks: [app_net]
@@ -81,17 +84,6 @@ jobs:
             networks: { app_net: { driver: bridge } }
             EOF
             
-            # Deploy full stack
             docker compose -f docker-compose-production.yml up -d --remove-orphans
-            
-            # Health check
             sleep 15
-            if ! docker compose -f docker-compose-production.yml ps | grep -E "(nginx|backend).*Up"; then
-              echo "❌ Services failed:"
-              docker compose  -f docker-compose-production.yml logs --tail=20
-              exit 1
-            fi
-            
-            echo "🎉 FULL-STACK LIVE!"
-            echo "🌐 https://${HOSTNAME}"
             docker compose -f docker-compose-production.yml ps

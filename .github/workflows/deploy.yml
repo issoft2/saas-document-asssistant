@@ -16,7 +16,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 🔥 BUILD FRONTEND ON GITHUB RUNNER (CRITICAL!)
+      # 🔥 BUILD FRONTEND ON GITHUB RUNNER
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -34,16 +34,28 @@ jobs:
           cd frontend
           npm run build
           echo "✅ Frontend dist built successfully"
-          ls -la dist/ 
+          ls -la dist/
           pwd
 
       - name: Verify dist exists
         run: |
           cd frontend
-          test -d dist && echo "✅ dist/ exists" || echo "❌ dist/ missing"    
+          test -d dist && echo "✅ dist/ exists" || exit 1
 
-      # 🔥 DEPLOY TO DROPLET (dist/ now exists!)
-      - name: Deploy over SSH
+      # 🔥 TRANSFER FILES TO DROPLET (CRITICAL!)
+      - name: Transfer frontend files to droplet
+        uses: appleboy/scp-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "frontend/dist/*"
+          target: "/srv/company-assistant/frontend/"
+          strip_components: 1
+
+      # 🔥 DEPLOY CONTAINERS (no file copy needed)
+      - name: Deploy containers over SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
           BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
@@ -56,26 +68,18 @@ jobs:
             set -e
             echo "🚀 FULL-STACK Deploy as $(whoami) at $(date)"
             
-            # Create directories
+            # Create directories & backend env
             mkdir -p /srv/company-assistant/{backend,frontend,data}
-            
-            # Backend environment
             echo "$BACKEND_ENV" > /srv/company-assistant/backend/.env
             chmod 600 /srv/company-assistant/backend/.env
             
             cd /srv/company-assistant
             
-            # Copy BUILT frontend files from GitHub runner
-            echo "📦 Copying frontend dist..."
-            cp -r $GITHUB_WORKSPACE/frontend/dist/* frontend/
+            # Frontend files already transferred by scp-action!
+            echo "✅ Frontend files ready: $(ls -la frontend/ | head -3)"
             
-            # Copy nginx.conf (create if missing)
-            if [ -f "$GITHUB_WORKSPACE/frontend/nginx.conf" ]; then
-              cp $GITHUB_WORKSPACE/frontend/nginx.conf frontend/nginx.conf
-              echo "✅ nginx.conf copied"
-            else
-              echo "⚠️ Creating default nginx.conf"
-              cat > frontend/nginx.conf << 'NGINX'
+            # Create nginx.conf
+            cat > frontend/nginx.conf << 'NGINX'
             server {
                 listen 80;
                 root /usr/share/nginx/html;
@@ -101,14 +105,13 @@ jobs:
                 }
             }
             NGINX
-            fi
-            
-            # Pull backend image
-            echo "🐳 Pulling backend image..."
-            docker pull specisaac/company-assistant-backend:latest
-            
-            # Create docker-compose-production.yml (HTTP first, SSL later)
-            cat > docker-compose-production.yml << 'EOF'
+                        
+                        # Pull backend image
+                        echo "🐳 Pulling backend..."
+                        docker pull specisaac/company-assistant-backend:latest
+                        
+                        # Create docker-compose-production.yml
+                        cat > docker-compose-production.yml << 'EOF'
             version: "3.9"
             services:
               backend:
@@ -144,22 +147,20 @@ jobs:
               app_net:
                 driver: bridge
             EOF
-            
-            echo "✅ docker-compose-production.yml created"
-            
-            # Zero-downtime deploy
-            docker compose -f docker-compose-production.yml up -d --remove-orphans
-            echo "🚀 Services deploying..."
-            
-            # Health check
-            sleep 15
-            if ! docker compose -f docker-compose-production.yml ps | grep -E "(nginx|backend).*Up"; then
-              echo "❌ Services failed to start:"
-              docker compose -f docker-compose-production.yml logs --tail=20
-              exit 1
-            fi
-            
-            echo "🎉 FULL-STACK DEPLOYMENT SUCCESSFUL!"
-            echo "🌐 Frontend: http://${HOSTNAME}:80"
-            echo "🌐 Backend API: http://${HOSTNAME}:8000"
-            docker compose -f docker-compose-production.yml ps
+                        
+                        # Deploy!
+                        docker compose -f docker-compose-production.yml up -d --remove-orphans
+                        echo "🚀 Services deploying..."
+                        
+                        # Health check
+                        sleep 15
+                        if ! docker compose -f docker-compose-production.yml ps | grep -E "(nginx|backend).*Up"; then
+                          echo "❌ Services failed:"
+                          docker compose -f docker-compose-production.yml logs --tail=20
+                          exit 1
+                        fi
+                        
+                        echo "🎉 FULL-STACK LIVE!"
+                        echo "🌐 Frontend: http://${HOSTNAME}:80"
+                        echo "🌐 Backend API: http://${HOSTNAME}:8000"
+                        docker compose -f docker-compose-production.yml ps

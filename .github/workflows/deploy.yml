@@ -61,63 +61,8 @@ jobs:
             chmod 600 backend/.env
             
             # Copy index.html to root for Vue SPA
-            cp frontend/dist/index.html frontend/index.html
+            cp frontend/dist/index.html frontend/index.html || true
             
-            # Perfect nginx.conf
-            cat > frontend/nginx.conf << 'NGINX'
-            server {
-                listen 80;
-                root /usr/share/nginx/html;
-                index index.html index.htm;
-                
-                # Vue SPA - serve index.html for all routes
-                location / {
-                    try_files $uri $uri/ /index.html;
-                }
-                
-                # Cache assets
-                location ~* \.(js|css|png|jpg|gif|ico|svg|woff|woff2)$ {
-                    expires 1y;
-                    add_header Cache-Control "public, immutable";
-                    try_files $uri =404;
-                }
-                
-                # API proxy
-                location /api/ {
-                    proxy_pass http://backend:8000/;
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                }
-            }
-            NGINX
-                        
-              # Modern Docker Compose (no version field)
-              cat > docker-compose-production.yml << 'EOF'
-            services:
-              backend:
-                image: specisaac/company-assistant-backend:latest
-                ports: ["8000:8000"]
-                env_file: ['./backend/.env']
-                volumes:
-                  - chroma_data:/app/chromadb_multi_tenant
-                  - ./data:/app/data
-                restart: unless-stopped
-                networks: [app_net]
-              nginx:
-                image: nginx:alpine
-                container_name: frontend-nginx
-                ports: ["80:80"]
-                volumes: ['./frontend/dist:/usr/share/nginx/html:ro']
-                restart: unless-stopped
-                depends_on: [backend]
-                networks: [app_net]
-            volumes:
-              chroma_data:
-            networks:
-              app_net:
-                driver: bridge
-            EOF
                         
               # Deploy
               docker compose -f docker-compose-production.yml down || true

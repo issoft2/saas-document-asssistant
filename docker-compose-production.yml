@@ -12,7 +12,12 @@ services:
       - ./data:/app/data
     restart: unless-stopped
     networks:
-      - app_net
+      app_net:
+         aliases:
+            - backend
+
+
+
 
   nginx:
     image: nginx:alpine

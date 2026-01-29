@@ -82,16 +82,16 @@ jobs:
             EOF
             
             # Deploy full stack
-            docker compose up -d --remove-orphans
+            docker compose -f docker-compose-production.yml up -d --remove-orphans
             
             # Health check
             sleep 15
-            if ! docker compose ps | grep -E "(nginx|backend).*Up"; then
+            if ! docker compose -f docker-compose-production.yml ps | grep -E "(nginx|backend).*Up"; then
               echo "❌ Services failed:"
-              docker compose logs --tail=20
+              docker compose  -f docker-compose-production.yml logs --tail=20
               exit 1
             fi
             
             echo "🎉 FULL-STACK LIVE!"
             echo "🌐 https://${HOSTNAME}"
-            docker compose ps
+            docker compose -f docker-compose-production.yml ps

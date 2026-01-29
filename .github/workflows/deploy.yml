@@ -27,24 +27,28 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
             set -e
-            echo "🚀 Deploying as $(whoami) at $(date)"
+            echo "🚀 FULL-STACK Deploy as $(whoami) at $(date)"
             
-            # Create app directory structure
-            mkdir -p /srv/company-assistant/backend
+            # Create directories for both backend + frontend
+            mkdir -p /srv/company-assistant/{backend,frontend}
             
-            # Write production .env file
+            # Copy BACKEND .env
             echo "$BACKEND_ENV" > /srv/company-assistant/backend/.env
             chmod 600 /srv/company-assistant/backend/.env
-            echo "✅ Environment configured"
             
-            cd /srv/company-assistant || { echo "❌ Project dir missing"; exit 1; }
+            cd /srv/company-assistant
             
-            # Pull latest image FIRST
+            # ✅ COPY FRONTEND STATIC FILES FROM GITHUB RUNNER (SAME REPO!)
+            echo "📦 Copying frontend static files from repo..."
+            cp -r $GITHUB_WORKSPACE/frontend/dist/* frontend/ || echo "⚠️ No dist/ found locally"
+            cp $GITHUB_WORKSPACE/frontend/nginx.conf frontend/nginx.conf || echo "⚠️ No nginx.conf"
+            
+            # Pull backend image
             docker pull specisaac/company-assistant-backend:latest
-            echo "✅ Latest image pulled"
             
-            # CREATE & USE docker-compose-production.yml WITH -f FLAG
-            cat > docker-compose.yml << 'EOF'
+            # CREATE PRODUCTION docker-compose-production.yml
+            cat > docker-compose-production.yml<< 'EOF'
+            version: "3.9"
             services:
               backend:
                 image: specisaac/company-assistant-backend:latest
@@ -52,23 +56,42 @@ jobs:
                   - "8000:8000"
                 env_file:
                   - ./backend/.env
+                volumes:
+                  - chroma_data:/app/chromadb_multi_tenant
+                  - ./data:/app/data
                 restart: unless-stopped
+                networks: [app_net]
+              
+              nginx:
+                image: nginx:alpine
+                container_name: frontend-nginx
+                ports:
+                  - "80:80"
+                  - "443:443"
+                volumes:
+                  - /etc/letsencrypt/live/lexiscope.duckdns.org:/etc/letsencrypt/live/lexiscope.duckdns.org:ro
+                  - /etc/letsencrypt/archive/lexiscope.duckdns.org:/etc/letsencrypt/archive/lexiscope.duckdns.org:ro
+                  - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+                  - ./frontend:/usr/share/nginx/html:ro
+                restart: unless-stopped
+                depends_on: [backend]
+                networks: [app_net]
+            
+            volumes: { chroma_data: {} }
+            networks: { app_net: { driver: bridge } }
             EOF
             
-            echo "✅ docker-compose.yml created"
-            
-            # Zero-downtime deployment (uses default docker-compose.yml)
+            # Deploy full stack
             docker compose up -d --remove-orphans
-            echo "✅ Services deployed"
             
             # Health check
             sleep 15
-            if ! docker compose ps | grep "Up"; then
-              echo "❌ Services failed to start:"
+            if ! docker compose ps | grep -E "(nginx|backend).*Up"; then
+              echo "❌ Services failed:"
               docker compose logs --tail=20
               exit 1
             fi
             
-            echo "🎉 DEPLOYMENT SUCCESSFUL!"
-            echo "🌐 Live at: http://${HOSTNAME}:8000"
+            echo "🎉 FULL-STACK LIVE!"
+            echo "🌐 https://${HOSTNAME}"
             docker compose ps

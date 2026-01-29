@@ -34,7 +34,13 @@ jobs:
           cd frontend
           npm run build
           echo "✅ Frontend dist built successfully"
-          ls -la frontend/dist/
+          ls -la dist/ 
+          pwd
+
+      - name: Verify dist exists
+        run: |
+          cd frontend
+          test -d dist && echo "✅ dist/ exists" || echo "❌ dist/ missing"    
 
       # 🔥 DEPLOY TO DROPLET (dist/ now exists!)
       - name: Deploy over SSH

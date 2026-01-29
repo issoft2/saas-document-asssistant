@@ -16,7 +16,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # BUILD FRONTEND
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -24,14 +23,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
-        run: cd frontend && npm ci
-
-      - name: Build frontend
+      - name: Install & build frontend
         run: |
           cd frontend
+          npm ci
           npm run build
-          echo "✅ Frontend dist built: $(ls -la dist/ | head -3)"
+          echo "✅ Built: $(ls -la dist/ | head -3)"
 
       - name: Transfer frontend files
         uses: appleboy/scp-action@v1
@@ -44,7 +41,6 @@ jobs:
           target: "/srv/company-assistant/frontend/"
           strip_components: 1
 
-      # DEPLOY CONTAINERS
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -57,46 +53,47 @@ jobs:
           script: |
             set -e
             
-            echo "🚀 Deploying $(date)"
-            
-            # Setup directories
-            mkdir -p /srv/company-assistant/{backend,frontend,data}
-            echo "$BACKEND_ENV" > /srv/company-assistant/backend/.env
-            chmod 600 /srv/company-assistant/backend/.env
-            
             cd /srv/company-assistant
             
-            # Verify frontend files
-            echo "Frontend files:"
-            ls -la frontend/ | head -5
+            # Ensure directories
+            mkdir -p {backend,frontend,data}
+            echo "$BACKEND_ENV" > backend/.env
+            chmod 600 backend/.env
             
-            # Create nginx.conf (single line config)
-            rm -rf frontend/nginx.conf
-            cat > frontend/nginx.conf << NGINX
+            # Copy index.html to root for Vue SPA
+            cp frontend/dist/index.html frontend/index.html
+            
+            # Perfect nginx.conf
+            cat > frontend/nginx.conf << 'NGINX'
             server {
                 listen 80;
                 root /usr/share/nginx/html;
-                index index.html;
-                location / { try_files \$uri /index.html; }
-                location ~* \.(js|css|png|jpg|gif|ico|svg)\$ {
-                    expires 1y; add_header Cache-Control "public, immutable";
+                index index.html index.htm;
+                
+                # Vue SPA - serve index.html for all routes
+                location / {
+                    try_files $uri $uri/ /index.html;
                 }
+                
+                # Cache assets
+                location ~* \.(js|css|png|jpg|gif|ico|svg|woff|woff2)$ {
+                    expires 1y;
+                    add_header Cache-Control "public, immutable";
+                    try_files $uri =404;
+                }
+                
+                # API proxy
                 location /api/ {
                     proxy_pass http://backend:8000/;
-                    proxy_set_header Host \$host;
-                    proxy_set_header X-Real-IP \$remote_addr;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                 }
             }
             NGINX
                         
-              echo "✅ nginx.conf: $(ls -la frontend/nginx.conf)"
-              
-              # Pull backend
-              docker pull specisaac/company-assistant-backend:latest
-              
-              # Perfect docker-compose.yml
-              cat > docker-compose-production.yml << EOF
-            version: "3.9"
+              # Modern Docker Compose (no version field)
+              cat > docker-compose-production.yml << 'EOF'
             services:
               backend:
                 image: specisaac/company-assistant-backend:latest
@@ -121,22 +118,21 @@ jobs:
               app_net:
                 driver: bridge
             EOF
-              
+                        
               # Deploy
               docker compose -f docker-compose-production.yml down || true
               docker compose -f docker-compose-production.yml up -d --remove-orphans
               
-              echo "Waiting for services..."
-              sleep 20
+              echo "Waiting 30s for startup..."
+              sleep 30
               
-              # Health check
-              STATUS=$(docker compose -f docker-compose-production.yml ps --format json | jq -r '.[].State' 2>/dev/null || echo "unknown")
-              if [[ "$STATUS" != *"running"* ]]; then
-                echo "❌ Services not healthy:"
-                docker compose -f docker-compose-production.yml logs --tail=30
-                exit 1
+              # Simple health check (no jq needed)
+              if ! docker compose -f docker-compose-production.yml ps | grep -E "(nginx|backend).*Up"; then
+                echo "❌ Check logs:"
+                docker compose -f docker-compose-production.yml logs --tail=50
+              else
+                echo "✅ BOTH SERVICES UP!"
+                echo "🌐 Frontend: http://${HOSTNAME}:80"
+                echo "🌐 Backend API: http://${HOSTNAME}:8000"
+                docker compose -f docker-compose-production.yml ps
               fi
-              
-              echo "🎉 FULL-STACK LIVE!"
-              echo "🌐 http://${HOSTNAME}:80"
-              docker compose -f docker-compose-production.yml ps

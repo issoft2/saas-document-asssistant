@@ -38,7 +38,7 @@ jobs:
           rsync -az --delete \
             -e "ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no" \
             frontend/dist/ \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/srv/company-assistant/frontend/
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/srv/company-assistant/frontend/dist/
 
 
       - name: Deploy backend over SSH

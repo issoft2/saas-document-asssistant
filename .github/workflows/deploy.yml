@@ -29,16 +29,17 @@ jobs:
           npm ci
           npm run build
 
-      - name: Deploy frontend via rsync
-        uses: burnett01/rsync-deployments@v6
-        with:
-          switches: -az --delete
-          path: frontend/dist/
-          remote_path: /srv/company-assistant/frontend/
-          remote_host: ${{ secrets.SSH_HOST }}
-          remote_user: ${{ secrets.SSH_USER }}
-          remote_key: ${{ secrets.SSH_KEY }}
-          remote_port: ${{ secrets.SSH_PORT }}
+      - name: Deploy frontend via native rsync
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          rsync -az --delete \
+            -e "ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no" \
+            frontend/dist/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/srv/company-assistant/frontend/
+
 
       - name: Deploy backend over SSH
         uses: appleboy/ssh-action@v1.0.3

@@ -30,8 +30,11 @@ services:
       - "443:443"
     volumes:
       # SSL certificates
-      - /etc/letsencrypt/live/askmi.duckdns.org:/etc/letsencrypt/live/askmi.duckdns.org:ro
-      - /etc/letsencrypt/archive/askmi.duckdns.org:/etc/letsencrypt/archive/askmi.duckdns.org:ro
+      # MOUNT whole letsencrypt tree (fix symlinks)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+      # - /etc/letsencrypt/live/askmi.duckdns.org:/etc/letsencrypt/live/askmi.duckdns.org:ro
+      # - /etc/letsencrypt/archive/askmi.duckdns.org:/etc/letsencrypt/archive/askmi.duckdns.org:ro
 
       # Nginx config
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro

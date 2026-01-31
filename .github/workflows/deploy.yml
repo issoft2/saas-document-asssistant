@@ -29,7 +29,9 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            sudo mkdir -p /srv/company-assistant
+            # Create the path and ensure ownership. 
+            # If the user has NOPASSWD set in visudo, this works.
+            sudo mkdir -p /srv/company-assistant/frontend/nginx
             sudo chown -R ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /srv/company-assistant
 
       # 2. Copy config files

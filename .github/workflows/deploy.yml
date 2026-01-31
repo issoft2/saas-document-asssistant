@@ -20,6 +20,17 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # ADD THIS STEP HERE
+      - name: Copy config files to Droplet
+        users: appleboy.scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "docker-compose-production.yml, frontend"  
+          target: /srv/company-assistant/
+
       - name: Deploy backend & frontend over SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -33,14 +44,19 @@ jobs:
             set -e
             cd /srv/company-assistant
 
-            # Ensure directories exist
+            # 1. Clean up: Delete the accidental folder Docker created
+            if [ -d "frontend/nginx.conf"]; then
+                echo "Cleaning up incorrect directory..."
+                rm -rf frontend/nginx.conf
+            fi
+            
+            # 2 Ensure directories exist
             mkdir -p backend data
-
-            # Write backend env (overwrite to avoid duplicates)
-            echo "$BACKEND_ENV" > backend/.env
+            # Write backend env 
+            echo "$BACKEND_ENV" >> backend/.env
             chmod 600 backend/.env
 
-            # Pull latest Docker images for both frontend and backend
+            # 3. Pull latest Docker images for both frontend and backend
             docker compose -f docker-compose-production.yml pull
 
             # Bring up the stack
